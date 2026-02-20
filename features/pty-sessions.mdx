@@ -1,0 +1,612 @@
+---
+title: PTY Sessions
+description: Interactive terminal sessions with full TTY support
+---
+
+The PTY (pseudo-terminal) API provides interactive terminal sessions with full TTY support, enabling complex terminal interactions, real-time input/output, and terminal control.
+
+## Overview
+
+Daytona's PTY sessions enable:
+- **Interactive terminals** - Full terminal emulation with command history
+- **Real-time I/O** - Stream terminal output as it happens
+- **Terminal control** - Resize, manage, and control terminal sessions
+- **Process management** - Monitor and control running processes
+
+## Creating PTY Sessions
+
+### Basic PTY Session
+
+Create an interactive terminal session:
+
+```typescript
+const ptyHandle = await sandbox.process.createPty({
+  id: 'my-terminal',
+  cols: 120,
+  rows: 30,
+  onData: (data) => {
+    // Decode and display terminal output
+    const text = new TextDecoder().decode(data);
+    process.stdout.write(text);
+  }
+});
+
+// Wait for connection to establish
+await ptyHandle.waitForConnection();
+
+// Send commands
+await ptyHandle.sendInput('ls -la\n');
+await ptyHandle.sendInput('pwd\n');
+await ptyHandle.sendInput('exit\n');
+
+// Wait for terminal to exit
+const result = await ptyHandle.wait();
+console.log(`Terminal exited with code: ${result.exitCode}`);
+
+// Clean up
+await ptyHandle.disconnect();
+```
+
+### PTY with Custom Environment
+
+```typescript
+const ptyHandle = await sandbox.process.createPty({
+  id: 'env-session',
+  cwd: '/workspace/project',
+  envs: {
+    TERM: 'xterm-256color',
+    LANG: 'en_US.UTF-8',
+    MY_VAR: 'custom-value'
+  },
+  cols: 100,
+  rows: 40,
+  onData: (data) => {
+    const text = new TextDecoder().decode(data);
+    process.stdout.write(text);
+  }
+});
+
+await ptyHandle.waitForConnection();
+```
+
+<ParamField path="options" type="PtyCreateOptions & PtyConnectOptions" required>
+  PTY session configuration
+  
+  <Expandable title="properties">
+    <ParamField path="id" type="string" required>
+      Unique identifier for the PTY session
+    </ParamField>
+    
+    <ParamField path="cwd" type="string">
+      Starting directory for the PTY session. Defaults to sandbox working directory.
+    </ParamField>
+    
+    <ParamField path="envs" type="Record<string, string>">
+      Environment variables for the PTY session
+    </ParamField>
+    
+    <ParamField path="cols" type="number">
+      Number of terminal columns. Default is 80.
+    </ParamField>
+    
+    <ParamField path="rows" type="number">
+      Number of terminal rows. Default is 24.
+    </ParamField>
+    
+    <ParamField path="onData" type="(data: Uint8Array) => void" required>
+      Callback to handle terminal output data
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Connecting to Existing PTY
+
+### Connect to PTY Session
+
+Connect to a previously created PTY session:
+
+```typescript
+const handle = await sandbox.process.connectPty('my-session', {
+  onData: (data) => {
+    const text = new TextDecoder().decode(data);
+    process.stdout.write(text);
+  }
+});
+
+await handle.waitForConnection();
+
+// Interact with the existing session
+await handle.sendInput('echo "Connected!"\n');
+```
+
+<ParamField path="sessionId" type="string" required>
+  ID of the PTY session to connect to
+</ParamField>
+
+<ParamField path="options" type="PtyConnectOptions" required>
+  Connection options
+  
+  <Expandable title="properties">
+    <ParamField path="onData" type="(data: Uint8Array) => void" required>
+      Callback to handle terminal output data
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Sending Input
+
+### Send Text Commands
+
+```typescript
+// Send a command
+await ptyHandle.sendInput('ls -la\n');
+
+// Send multiple commands
+await ptyHandle.sendInput('cd /workspace\n');
+await ptyHandle.sendInput('git status\n');
+
+// Send interactive input
+await ptyHandle.sendInput('python3\n');
+await new Promise(resolve => setTimeout(resolve, 500));
+await ptyHandle.sendInput('print("Hello from Python")\n');
+await ptyHandle.sendInput('exit()\n');
+```
+
+### Send Raw Bytes
+
+```typescript
+// Send Ctrl+C (interrupt)
+await ptyHandle.sendInput(new Uint8Array([3]));
+
+// Send Ctrl+D (EOF)
+await ptyHandle.sendInput(new Uint8Array([4]));
+
+// Send Ctrl+Z (suspend)
+await ptyHandle.sendInput(new Uint8Array([26]));
+```
+
+<ParamField path="data" type="string | Uint8Array" required>
+  Input data to send. String for commands/text, Uint8Array for raw control sequences.
+</ParamField>
+
+## Terminal Control
+
+### Resize Terminal
+
+Change terminal dimensions:
+
+```typescript
+const info = await ptyHandle.resize(120, 50);
+console.log(`Resized to: ${info.cols}x${info.rows}`);
+```
+
+Or using the process API:
+
+```typescript
+const info = await sandbox.process.resizePtySession(
+  'my-session',
+  150,  // cols
+  40    // rows
+);
+```
+
+<ParamField path="cols" type="number" required>
+  New number of terminal columns
+</ParamField>
+
+<ParamField path="rows" type="number" required>
+  New number of terminal rows
+</ParamField>
+
+### Wait for Connection
+
+Ensure the PTY session is ready before sending input:
+
+```typescript
+const ptyHandle = await sandbox.process.createPty(options);
+
+// Wait for connection (10 second timeout)
+await ptyHandle.waitForConnection();
+
+// Now safe to send input
+await ptyHandle.sendInput('echo "Ready!"\n');
+```
+
+### Check Connection Status
+
+```typescript
+if (ptyHandle.isConnected()) {
+  await ptyHandle.sendInput('command\n');
+} else {
+  console.log('Not connected');
+}
+```
+
+## Process Management
+
+### Wait for Exit
+
+Block until the PTY process terminates:
+
+```typescript
+await ptyHandle.sendInput('exit\n');
+
+const result = await ptyHandle.wait();
+
+if (result.exitCode === 0) {
+  console.log('Process completed successfully');
+} else {
+  console.log(`Process failed with code: ${result.exitCode}`);
+  if (result.error) {
+    console.log(`Error: ${result.error}`);
+  }
+}
+```
+
+**PTY Result:**
+
+```typescript
+interface PtyResult {
+  exitCode?: number;  // Exit code when process ends
+  error?: string;     // Error message if PTY failed
+}
+```
+
+### Kill PTY Session
+
+Forcefully terminate the PTY session:
+
+```typescript
+// Kill via handle
+await ptyHandle.kill();
+
+// Or kill via process API
+await sandbox.process.killPtySession('my-session');
+
+// Wait for termination
+const result = await ptyHandle.wait();
+console.log(`Terminated with exit code: ${result.exitCode}`);
+```
+
+### Disconnect from PTY
+
+Close the WebSocket connection and clean up:
+
+```typescript
+await ptyHandle.disconnect();
+```
+
+<Note>
+  Always disconnect from PTY sessions when done to release resources.
+</Note>
+
+## PTY Session Information
+
+### List All PTY Sessions
+
+```typescript
+const sessions = await sandbox.process.listPtySessions();
+
+sessions.forEach(session => {
+  console.log(`Session ID: ${session.id}`);
+  console.log(`Active: ${session.active}`);
+  console.log(`Created: ${session.createdAt}`);
+  console.log(`Cols x Rows: ${session.cols}x${session.rows}`);
+  console.log(`Working Directory: ${session.cwd}`);
+  if (session.processId) {
+    console.log(`Process ID: ${session.processId}`);
+  }
+  console.log('---');
+});
+```
+
+### Get Session Details
+
+```typescript
+const session = await sandbox.process.getPtySessionInfo('my-session');
+
+console.log(`Session ID: ${session.id}`);
+console.log(`Active: ${session.active}`);
+console.log(`Working Directory: ${session.cwd}`);
+console.log(`Terminal Size: ${session.cols}x${session.rows}`);
+
+if (session.processId) {
+  console.log(`Process ID: ${session.processId}`);
+}
+```
+
+## Interactive Commands Example
+
+### Handle Interactive Prompts
+
+```typescript
+const ptyHandle = await sandbox.process.createPty({
+  id: 'interactive-session',
+  cols: 120,
+  rows: 30,
+  onData: (data) => {
+    const text = new TextDecoder().decode(data);
+    process.stdout.write(text);
+  }
+});
+
+await ptyHandle.waitForConnection();
+
+// Send interactive command
+await ptyHandle.sendInput('read -p "Enter your name: " name && echo "Hello, $name"\n');
+
+// Wait for prompt
+await new Promise(resolve => setTimeout(resolve, 1000));
+
+// Send input
+await ptyHandle.sendInput('Alice\n');
+
+// Wait and exit
+await new Promise(resolve => setTimeout(resolve, 1000));
+await ptyHandle.sendInput('exit\n');
+
+const result = await ptyHandle.wait();
+console.log(`Session completed with exit code: ${result.exitCode}`);
+
+await ptyHandle.disconnect();
+```
+
+## Complete Example
+
+```typescript
+import { Daytona, Sandbox } from '@daytonaio/sdk';
+
+async function runPtySession(sandbox: Sandbox) {
+  console.log('=== Creating Interactive PTY Session ===');
+  
+  const ptySessionId = 'demo-session';
+  
+  // Create PTY session
+  const ptyHandle = await sandbox.process.createPty({
+    id: ptySessionId,
+    cwd: '/workspace',
+    envs: {
+      TERM: 'xterm-256color',
+      LANG: 'en_US.UTF-8'
+    },
+    cols: 120,
+    rows: 30,
+    onData: (data) => {
+      const text = new TextDecoder().decode(data);
+      process.stdout.write(text);
+    }
+  });
+  
+  // Wait for connection
+  await ptyHandle.waitForConnection();
+  console.log('PTY connection established');
+  
+  // Run some commands
+  console.log('\nRunning commands...');
+  
+  await ptyHandle.sendInput('echo "Current directory:"\n');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  await ptyHandle.sendInput('pwd\n');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  await ptyHandle.sendInput('echo "List files:"\n');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  await ptyHandle.sendInput('ls -la\n');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Interactive command
+  console.log('\nSending interactive command...');
+  await ptyHandle.sendInput('printf "Enter a number: " && read num && echo "You entered: $num"\n');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  await ptyHandle.sendInput('42\n');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Resize terminal
+  console.log('\nResizing terminal...');
+  const info = await ptyHandle.resize(80, 25);
+  console.log(`Resized to ${info.cols}x${info.rows}`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Exit
+  console.log('\nExiting...');
+  await ptyHandle.sendInput('exit\n');
+  
+  // Wait for completion
+  const result = await ptyHandle.wait();
+  console.log(`\nPTY session completed with exit code: ${result.exitCode}`);
+  
+  // Clean up
+  await ptyHandle.disconnect();
+}
+
+async function killLongRunningSession(sandbox: Sandbox) {
+  console.log('\n=== Kill Long-Running PTY Session ===');
+  
+  const ptyHandle = await sandbox.process.createPty({
+    id: 'kill-session',
+    cols: 120,
+    rows: 30,
+    onData: (data) => {
+      const text = new TextDecoder().decode(data);
+      process.stdout.write(text);
+    }
+  });
+  
+  await ptyHandle.waitForConnection();
+  
+  // Start infinite loop
+  console.log('Starting long-running process...');
+  await ptyHandle.sendInput('while true; do echo "Running... $(date)"; sleep 1; done\n');
+  
+  // Let it run briefly
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
+  // Kill the session
+  console.log('\nKilling PTY session...');
+  await ptyHandle.kill();
+  
+  const result = await ptyHandle.wait();
+  console.log(`Session terminated with exit code: ${result.exitCode}`);
+  
+  await ptyHandle.disconnect();
+}
+
+async function main() {
+  const daytona = new Daytona();
+  const sandbox = await daytona.create();
+  
+  try {
+    await runPtySession(sandbox);
+    await killLongRunningSession(sandbox);
+  } catch (error) {
+    console.error('Error:', error);
+  } finally {
+    console.log(`\nDeleting sandbox: ${sandbox.id}`);
+    await daytona.delete(sandbox);
+  }
+}
+
+main().catch(console.error);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always wait for connection">
+    Call `waitForConnection()` before sending input to ensure the PTY is ready:
+    
+    ```typescript
+    const ptyHandle = await sandbox.process.createPty(options);
+    await ptyHandle.waitForConnection();
+    await ptyHandle.sendInput('command\n');
+    ```
+  </Accordion>
+
+  <Accordion title="Add delays between commands">
+    Give commands time to execute before sending the next one:
+    
+    ```typescript
+    await ptyHandle.sendInput('ls -la\n');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await ptyHandle.sendInput('pwd\n');
+    ```
+  </Accordion>
+
+  <Accordion title="Clean up resources">
+    Always disconnect when done:
+    
+    ```typescript
+    try {
+      // Use PTY
+    } finally {
+      await ptyHandle.disconnect();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    Check connection status and handle errors:
+    
+    ```typescript
+    if (!ptyHandle.isConnected()) {
+      console.error('PTY not connected');
+      return;
+    }
+    
+    const result = await ptyHandle.wait();
+    if (result.error) {
+      console.error('PTY error:', result.error);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Interactive Shell Sessions">
+    Run interactive shell commands with real-time feedback:
+    
+    ```typescript
+    await ptyHandle.sendInput('python3\n');
+    await ptyHandle.sendInput('print("Hello")\n');
+    await ptyHandle.sendInput('exit()\n');
+    ```
+  </Accordion>
+
+  <Accordion title="Long-Running Processes">
+    Monitor long-running processes with streaming output:
+    
+    ```typescript
+    const ptyHandle = await sandbox.process.createPty({
+      id: 'build-session',
+      onData: (data) => {
+        // Stream build output in real-time
+        const text = new TextDecoder().decode(data);
+        console.log(text);
+      }
+    });
+    
+    await ptyHandle.sendInput('npm run build\n');
+    ```
+  </Accordion>
+
+  <Accordion title="Terminal Applications">
+    Run full terminal applications like vim, htop, etc.:
+    
+    ```typescript
+    await ptyHandle.sendInput('vim file.txt\n');
+    // Send vim commands
+    await ptyHandle.sendInput('i'); // Insert mode
+    await ptyHandle.sendInput('Hello World');
+    await ptyHandle.sendInput(new Uint8Array([27])); // ESC
+    await ptyHandle.sendInput(':wq\n'); // Save and quit
+    ```
+  </Accordion>
+
+  <Accordion title="Automated Testing">
+    Test CLI applications with automated input:
+    
+    ```typescript
+    await ptyHandle.sendInput('./my-cli-tool\n');
+    await ptyHandle.sendInput('option1\n');
+    await ptyHandle.sendInput('yes\n');
+    
+    const result = await ptyHandle.wait();
+    console.log(`Test ${result.exitCode === 0 ? 'passed' : 'failed'}`);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## PTY Handle Properties
+
+```typescript
+interface PtyHandle {
+  sessionId: string;              // PTY session ID
+  exitCode?: number;              // Exit code (when terminated)
+  error?: string;                 // Error message (if failed)
+  
+  // Methods
+  sendInput(data: string | Uint8Array): Promise<void>;
+  resize(cols: number, rows: number): Promise<PtySessionInfo>;
+  wait(): Promise<PtyResult>;
+  kill(): Promise<void>;
+  disconnect(): Promise<void>;
+  waitForConnection(): Promise<void>;
+  isConnected(): boolean;
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Process Execution" icon="terminal" href="/features/process-execution">
+    Execute commands and code in sandboxes
+  </Card>
+  
+  <Card title="Computer Use" icon="desktop" href="/features/computer-use">
+    Desktop automation with GUI interaction
+  </Card>
+</CardGroup>

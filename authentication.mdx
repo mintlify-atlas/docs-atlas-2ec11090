@@ -1,0 +1,372 @@
+---
+title: Authentication
+description: Set up your API key and configure the Daytona SDK
+---
+
+The Daytona SDK uses API keys to authenticate requests. You can generate and manage your API keys from the [Daytona dashboard](https://app.daytona.io/dashboard/keys).
+
+## Getting your API key
+
+<Steps>
+  <Step title="Sign up or log in">
+    Go to [app.daytona.io](https://app.daytona.io) and create an account or log in
+  </Step>
+  <Step title="Navigate to API keys">
+    Click on your profile and go to [Dashboard > API Keys](https://app.daytona.io/dashboard/keys)
+  </Step>
+  <Step title="Generate a new key">
+    Click "Generate New API Key" and give it a descriptive name
+  </Step>
+  <Step title="Copy and store securely">
+    Copy the API key immediately - you won't be able to see it again
+  </Step>
+</Steps>
+
+<Warning>
+Never commit your API key to version control or share it publicly. Treat it like a password.
+</Warning>
+
+## Configuration methods
+
+There are two main ways to configure the SDK with your API key:
+
+### Environment variables (recommended)
+
+The simplest and most secure method is to use environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key-here"
+```
+
+Then initialize the SDK without explicitly passing the key:
+
+<CodeGroup>
+
+```python Python
+from daytona import Daytona
+
+# Automatically uses DAYTONA_API_KEY from environment
+daytona = Daytona()
+```
+
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+// Automatically uses DAYTONA_API_KEY from environment
+const daytona = new Daytona()
+```
+
+```go Go
+import "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+
+// Automatically uses DAYTONA_API_KEY from environment
+client, err := daytona.NewClient()
+```
+
+```ruby Ruby
+require 'daytona'
+
+# Automatically uses DAYTONA_API_KEY from environment
+daytona = Daytona::Daytona.new
+```
+
+</CodeGroup>
+
+### Configuration object
+
+You can also pass the API key directly in your code:
+
+<CodeGroup>
+
+```python Python
+from daytona import Daytona, DaytonaConfig
+
+config = DaytonaConfig(
+    api_key="your-api-key",
+    api_url="https://app.daytona.io/api",  # Optional
+    target="us"  # Optional
+)
+daytona = Daytona(config)
+```
+
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona({
+  apiKey: 'your-api-key',
+  apiUrl: 'https://app.daytona.io/api',  // Optional
+  target: 'us',  // Optional
+})
+```
+
+```go Go
+import (
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+config := &types.DaytonaConfig{
+    APIKey: "your-api-key",
+}
+
+client, err := daytona.NewClientWithConfig(config)
+```
+
+```ruby Ruby
+require 'daytona'
+
+config = Daytona::Config.new(
+  api_key: 'your-api-key',
+  target: 'us'  # Optional
+)
+daytona = Daytona::Daytona.new(config)
+```
+
+</CodeGroup>
+
+<Warning>
+When passing the API key directly in code, make sure to:
+- Never commit it to version control
+- Use environment variables or a secrets manager
+- Keep your API key in a `.env` file that's in `.gitignore`
+</Warning>
+
+## Environment variables reference
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|--------|
+| `DAYTONA_API_KEY` | Your Daytona API key | Yes | - |
+| `DAYTONA_API_URL` | The Daytona API endpoint | No | `https://app.daytona.io/api` |
+| `DAYTONA_TARGET` | Target region for sandboxes | No | `us` |
+
+## Using .env files
+
+For local development, you can use a `.env` file to store your API key:
+
+<Steps>
+  <Step title="Create a .env file">
+    Create a file named `.env` in your project root:
+    ```bash
+    DAYTONA_API_KEY=your-api-key-here
+    DAYTONA_TARGET=us
+    ```
+  </Step>
+  <Step title="Add to .gitignore">
+    Make sure `.env` is in your `.gitignore`:
+    ```bash
+    echo ".env" >> .gitignore
+    ```
+  </Step>
+  <Step title="Load environment variables">
+    Use a library to load the `.env` file:
+    
+    <Tabs>
+      <Tab title="Python">
+        ```bash
+        pip install python-dotenv
+        ```
+        
+        ```python
+        from dotenv import load_dotenv
+        from daytona import Daytona
+        
+        load_dotenv()
+        daytona = Daytona()
+        ```
+      </Tab>
+      <Tab title="TypeScript">
+        ```bash
+        npm install dotenv
+        ```
+        
+        ```typescript
+        import 'dotenv/config'
+        import { Daytona } from '@daytonaio/sdk'
+        
+        const daytona = new Daytona()
+        ```
+      </Tab>
+      <Tab title="Go">
+        ```bash
+        go get github.com/joho/godotenv
+        ```
+        
+        ```go
+        import (
+            "github.com/joho/godotenv"
+            "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+        )
+        
+        func main() {
+            godotenv.Load()
+            client, _ := daytona.NewClient()
+        }
+        ```
+      </Tab>
+      <Tab title="Ruby">
+        ```bash
+        gem install dotenv
+        ```
+        
+        ```ruby
+        require 'dotenv/load'
+        require 'daytona'
+        
+        daytona = Daytona::Daytona.new
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Production best practices
+
+For production deployments:
+
+<AccordionGroup>
+  <Accordion title="Use environment variables" icon="shield">
+    Always use environment variables or a secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.) instead of hardcoding API keys.
+  </Accordion>
+
+  <Accordion title="Rotate keys regularly" icon="rotate">
+    Generate new API keys periodically and revoke old ones:
+    1. Generate a new key in the dashboard
+    2. Update your production environment
+    3. Revoke the old key after confirming the new one works
+  </Accordion>
+
+  <Accordion title="Use separate keys per environment" icon="layer-group">
+    Create different API keys for development, staging, and production:
+    ```bash
+    # Development
+    DAYTONA_API_KEY=dev_key_here
+    
+    # Staging
+    DAYTONA_API_KEY=staging_key_here
+    
+    # Production
+    DAYTONA_API_KEY=prod_key_here
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor API key usage" icon="chart-line">
+    Regularly check your API key usage in the Daytona dashboard to detect:
+    - Unusual activity patterns
+    - Compromised keys
+    - Rate limit issues
+  </Accordion>
+</AccordionGroup>
+
+## Verifying authentication
+
+To verify your API key is working correctly:
+
+<CodeGroup>
+
+```python Python
+from daytona import Daytona
+
+try:
+    daytona = Daytona()
+    sandboxes = daytona.list()
+    print(f"✓ Authentication successful! You have {sandboxes.total} sandboxes.")
+except Exception as e:
+    print(f"✗ Authentication failed: {e}")
+```
+
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+async function verifyAuth() {
+  try {
+    const daytona = new Daytona()
+    const sandboxes = await daytona.list()
+    console.log(`✓ Authentication successful! You have ${sandboxes.total} sandboxes.`)
+  } catch (error) {
+    console.error(`✗ Authentication failed:`, error)
+  }
+}
+
+verifyAuth()
+```
+
+```go Go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+)
+
+func main() {
+	client, err := daytona.NewClient()
+	if err != nil {
+		fmt.Printf("✗ Authentication failed: %v\n", err)
+		return
+	}
+
+	ctx := context.Background()
+	sandboxes, err := client.List(ctx, nil, nil, nil)
+	if err != nil {
+		fmt.Printf("✗ Authentication failed: %v\n", err)
+		return
+	}
+
+	fmt.Printf("✓ Authentication successful! You have %d sandboxes.\n", sandboxes.Total)
+}
+```
+
+```ruby Ruby
+require 'daytona'
+
+begin
+  daytona = Daytona::Daytona.new
+  sandboxes = daytona.list
+  puts "✓ Authentication successful! You have #{sandboxes.total} sandboxes."
+rescue => e
+  puts "✗ Authentication failed: #{e.message}"
+end
+```
+
+</CodeGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized error">
+    This means your API key is invalid or missing. Check that:
+    - The API key is correctly copied from the dashboard
+    - The environment variable is properly set
+    - The API key hasn't been revoked
+    
+    Try regenerating a new API key if the issue persists.
+  </Accordion>
+
+  <Accordion title="Environment variable not loading">
+    Make sure you've exported the variable in your current shell:
+    ```bash
+    echo $DAYTONA_API_KEY
+    ```
+    
+    If empty, export it again or add it to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.).
+  </Accordion>
+
+  <Accordion title="Connection errors">
+    If you're getting connection errors:
+    - Verify your internet connection
+    - Check if you're behind a proxy or firewall
+    - Ensure `DAYTONA_API_URL` is set correctly if using a custom endpoint
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Create your first sandbox in under 5 minutes
+  </Card>
+  <Card title="SDK guides" icon="gear" href="/sdks/overview">
+    Learn about SDK configuration options for all languages
+  </Card>
+</CardGroup>

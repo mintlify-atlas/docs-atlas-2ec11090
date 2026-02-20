@@ -1,0 +1,347 @@
+---
+title: File System API
+description: Manage files and directories in Daytona sandboxes
+---
+
+The File System API provides endpoints for managing files and directories, including reading, writing, searching, uploading, downloading, and manipulating file permissions.
+
+## File Operations
+
+### List Files
+
+List files and directories in a specified path.
+
+```http
+GET /files?path=/workspace
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | No | Directory path (defaults to working directory) |
+
+**Response:**
+
+```json
+[
+  {
+    "name": "README.md",
+    "size": 1024,
+    "isDir": false,
+    "mode": "-rw-r--r--",
+    "permissions": "644",
+    "owner": "user",
+    "group": "user",
+    "modTime": "2024-01-15T10:30:00Z"
+  },
+  {
+    "name": "src",
+    "size": 4096,
+    "isDir": true,
+    "mode": "drwxr-xr-x",
+    "permissions": "755",
+    "owner": "user",
+    "group": "user",
+    "modTime": "2024-01-15T10:30:00Z"
+  }
+]
+```
+
+### Get File Info
+
+Get detailed information about a file or directory.
+
+```http
+GET /files/info?path=/workspace/README.md
+```
+
+**Response:**
+
+```json
+{
+  "name": "README.md",
+  "size": 1024,
+  "isDir": false,
+  "mode": "-rw-r--r--",
+  "permissions": "644",
+  "owner": "user",
+  "group": "user",
+  "modTime": "2024-01-15T10:30:00Z"
+}
+```
+
+### Download File
+
+Download a single file.
+
+```http
+GET /files/download?path=/workspace/README.md
+```
+
+**Response:** Binary file content with `Content-Type: application/octet-stream`
+
+### Download Multiple Files
+
+Download multiple files in a single request.
+
+```http
+POST /files/bulk-download
+```
+
+**Request Body:**
+
+```json
+{
+  "paths": [
+    "/workspace/README.md",
+    "/workspace/package.json",
+    "/workspace/src/index.ts"
+  ]
+}
+```
+
+**Response:** Multipart form data containing all requested files
+
+### Upload File
+
+Upload a single file to a specified path.
+
+```http
+POST /files/upload?path=/workspace/config.json
+Content-Type: multipart/form-data
+```
+
+**Form Data:**
+- `file`: The file to upload
+
+### Upload Multiple Files
+
+Upload multiple files in a single request.
+
+```http
+POST /files/bulk-upload
+Content-Type: multipart/form-data
+```
+
+## Directory Operations
+
+### Create Folder
+
+Create a new directory with specified permissions.
+
+```http
+POST /files/folder?path=/workspace/new-folder&mode=0755
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | Directory path to create |
+| `mode` | string | Yes | Octal permission mode (e.g., "0755") |
+
+### Delete File or Directory
+
+Delete a file or directory.
+
+```http
+DELETE /files?path=/workspace/old-folder&recursive=true
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | Path to delete |
+| `recursive` | boolean | No | Enable recursive deletion for directories |
+
+### Move or Rename
+
+Move or rename a file or directory.
+
+```http
+POST /files/move?source=/workspace/old-name&destination=/workspace/new-name
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source` | string | Yes | Source path |
+| `destination` | string | Yes | Destination path |
+
+## Search Operations
+
+### Search Files by Pattern
+
+Search for files matching a specific pattern.
+
+```http
+GET /files/search?path=/workspace&pattern=*.ts
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | Directory to search in |
+| `pattern` | string | Yes | File pattern (e.g., "*.ts", "*.go") |
+
+**Response:**
+
+```json
+{
+  "files": [
+    "/workspace/src/index.ts",
+    "/workspace/src/utils.ts",
+    "/workspace/tests/app.test.ts"
+  ]
+}
+```
+
+### Find Text in Files
+
+Search for text content within files.
+
+```http
+GET /files/find?path=/workspace&pattern=TODO
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | Directory to search in |
+| `pattern` | string | Yes | Text pattern to search for |
+
+**Response:**
+
+```json
+[
+  {
+    "file": "/workspace/src/index.ts",
+    "line": 42,
+    "content": "// TODO: Implement error handling"
+  },
+  {
+    "file": "/workspace/src/utils.ts",
+    "line": 15,
+    "content": "// TODO: Add validation"
+  }
+]
+```
+
+### Replace Text in Files
+
+Replace text pattern with new value in multiple files.
+
+```http
+POST /files/replace
+```
+
+**Request Body:**
+
+```json
+{
+  "pattern": "oldValue",
+  "newValue": "newValue",
+  "files": [
+    "/workspace/src/config.ts",
+    "/workspace/src/settings.ts"
+  ]
+}
+```
+
+**Response:**
+
+```json
+[
+  {
+    "file": "/workspace/src/config.ts",
+    "success": true,
+    "error": ""
+  },
+  {
+    "file": "/workspace/src/settings.ts",
+    "success": true,
+    "error": ""
+  }
+]
+```
+
+## Permissions
+
+### Set File Permissions
+
+Set permissions, ownership, and group for a file or directory.
+
+```http
+POST /files/permissions?path=/workspace/script.sh&mode=0755&owner=user&group=developers
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | Yes | File or directory path |
+| `owner` | string | No | Owner username or UID |
+| `group` | string | No | Group name or GID |
+| `mode` | string | No | Octal permission mode (e.g., "0755") |
+
+## File Information Schema
+
+The `FileInfo` object contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | File or directory name |
+| `size` | integer | Size in bytes |
+| `isDir` | boolean | Whether this is a directory |
+| `mode` | string | File mode string (e.g., "-rw-r--r--") |
+| `permissions` | string | Octal permissions (e.g., "644") |
+| `owner` | string | Owner username |
+| `group` | string | Group name |
+| `modTime` | string | Last modification time (ISO 8601) |
+
+## Best Practices
+
+<Tip>
+Use **bulk operations** when working with multiple files to reduce network overhead and improve performance.
+</Tip>
+
+- Always specify absolute paths to avoid ambiguity
+- Use recursive deletion with caution
+- Set appropriate file permissions for security
+- Handle file not found errors gracefully
+- Use search operations for large directory trees instead of listing all files
+
+## Example Usage
+
+```typescript
+import { ToolboxApiClient } from '@daytona/toolbox-api-client'
+
+const client = new ToolboxApiClient({
+  baseURL: 'http://localhost:8080',
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+// List files
+const files = await client.fileSystem.listFiles('/workspace')
+
+// Search for TypeScript files
+const tsFiles = await client.fileSystem.searchFiles(
+  '/workspace',
+  '*.ts'
+)
+
+// Find TODO comments
+const todos = await client.fileSystem.findInFiles(
+  '/workspace',
+  'TODO'
+)
+```
+
+<Note>
+Prefer using the official Daytona SDKs over direct API calls for better type safety and error handling.
+</Note>

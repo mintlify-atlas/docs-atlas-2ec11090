@@ -1,0 +1,318 @@
+---
+title: Building AI Coding Agents
+description: Build autonomous coding agents that can write, test, and deploy applications in Daytona sandboxes
+---
+
+## Overview
+
+Daytona sandboxes provide the perfect execution environment for AI coding agents. Build agents that can autonomously write code, run tests, start development servers, and deploy applications - all within secure, isolated environments.
+
+## Key Capabilities
+
+### Autonomous Development
+
+Coding agents can perform complete development workflows:
+
+- Scaffold new projects and applications
+- Write and edit code across multiple languages
+- Install dependencies and manage packages
+- Run tests and debug failures
+- Start development servers and provide preview links
+
+### Secure Execution
+
+All agent operations run in isolated Daytona sandboxes:
+
+- LLM-generated code executes safely without host access
+- Each sandbox provides a clean, reproducible environment
+- Automatic cleanup and resource management
+- Preview links for deployed applications
+
+## Framework Integration
+
+### AgentKit + Inngest
+
+[AgentKit](https://agentkit.inngest.com/) provides a powerful framework for building multi-step coding agents with workflow orchestration.
+
+**Example: Autonomous Web App Builder**
+
+```typescript
+import { Agent, Network } from '@inngest/agent-kit';
+import { anthropic } from '@ai-sdk/anthropic';
+
+const model = anthropic('claude-3-5-haiku-20241022');
+
+const network = new Network({
+  agent: new Agent({
+    name: 'coding-agent',
+    model,
+    system: `You are an expert software developer...
+    
+    You have access to a Daytona sandbox where you can:
+    - Create and manage files and directories
+    - Run code in any language
+    - Start development servers
+    - Execute shell commands`,
+    tools: [
+      createSandboxTool,
+      writeFileTool,
+      runCommandTool,
+      // ... other tools
+    ]
+  }),
+  enableDebugLogs: true,
+});
+
+// Create a React notes app
+const result = await network.run(
+  `Create a minimal React app called "Notes" that lets users add, 
+  view, and delete notes. Use Vite for setup. Include a simple UI 
+  with a form to add notes and a list to display them.`
+);
+```
+
+**Capabilities:**
+
+- Multi-language support (JavaScript, Python, TypeScript, etc.)
+- Automatic dev server detection and startup
+- File and directory management
+- Script and test execution
+- Preview link generation for live inspection
+
+**Reference:** [AgentKit Coding Agent Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/agentkit-inngest/coding-agent/anthropic)
+
+### Mastra Framework
+
+[Mastra](https://mastra.ai/) provides comprehensive coding agent capabilities with professional development patterns.
+
+**Example: Full-Stack Development Agent**
+
+```typescript
+import { Agent } from '@mastra/core';
+import { openai } from '@ai-sdk/openai';
+
+export const codingAgent = new Agent({
+  id: 'coding-agent',
+  name: 'Coding Agent',
+  instructions: `You are an expert coding agent with access to 
+  secure sandbox environments. You can:
+  
+  - Execute code in Python, JavaScript, and TypeScript
+  - Manage files and directories with batch operations
+  - Run shell commands and install packages
+  - Monitor development workflows
+  - Provide live previews of applications`,
+  model: openai('gpt-4.1'),
+  tools: {
+    createSandbox,
+    runCode,
+    writeFile,
+    writeFiles,
+    readFile,
+    runCommand,
+    watchDirectory,
+    // ... other tools
+  },
+});
+```
+
+**Features:**
+
+- Secure code execution in multiple languages
+- Complete file management with batch operations
+- Live development monitoring with directory watching
+- Memory system with semantic recall
+- Build automation and workflow patterns
+
+**Reference:** [Mastra Coding Agent Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/mastra/coding-agent/openai)
+
+### Claude Agent SDK
+
+Integrate Claude's powerful coding capabilities directly in Daytona sandboxes.
+
+**Example: Single Agent**
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// Agent runs inside Daytona sandbox with full tool access
+const result = await client.messages.create({
+  model: 'claude-sonnet-4-20250514',
+  max_tokens: 4096,
+  messages: [{ 
+    role: 'user', 
+    content: 'Build a lunar lander web game with physics simulation' 
+  }],
+});
+```
+
+**Reference:** [Claude Single Agent Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/anthropic/single-claude-agent-sdk)
+
+### OpenCode SDK
+
+[OpenCode](https://opencode.ai/docs/sdk/) provides a complete coding agent that runs entirely in Daytona sandboxes.
+
+**Example: Interactive Coding Agent**
+
+```typescript
+import { createSandbox } from '@daytona/sdk';
+
+// Create sandbox and install OpenCode
+const sandbox = await createSandbox({ public: true });
+await sandbox.exec('curl -fsSL https://opencode.sh | sh');
+await sandbox.exec('opencode server --host 0.0.0.0');
+
+// Attach and interact via SDK
+const client = new OpenCodeClient({
+  baseURL: `https://4321-${sandbox.id}.proxy.daytona.works`,
+});
+
+for await (const event of client.stream(userMessage)) {
+  if (event.type === 'tool_use') {
+    console.log(`🔨 ${event.tool}: ${event.description}`);
+  }
+}
+```
+
+**Capabilities:**
+
+- Full file system access (read, write, edit)
+- Shell command execution
+- Multi-step reasoning and planning
+- Preview link support
+- Streaming tool events
+
+**Reference:** [OpenCode SDK Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/opencode/opencode-sdk)
+
+## Multi-Agent Architectures
+
+### Hierarchical Agent Systems
+
+Build sophisticated multi-agent systems where a project manager delegates to developer agents.
+
+**Example: Two-Agent System**
+
+```typescript
+// Project Manager Agent (runs locally)
+const projectManager = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// Developer Agent (runs in Daytona sandbox)
+const devSandbox = await createSandbox();
+await installClaudeAgent(devSandbox);
+
+// Project Manager delegates tasks using <developer_task> tags
+const pmResult = await projectManager.messages.create({
+  model: 'claude-sonnet-4-20250514',
+  messages: [{
+    role: 'user',
+    content: 'Build a lunar lander web app'
+  }],
+});
+
+// When PM uses <developer_task>, delegate to Developer Agent
+const devResult = await executeDeveloperTask(
+  devSandbox,
+  extractTaskFromPM(pmResult)
+);
+```
+
+**Architecture:**
+
+```
+┌─────────────────────────┐
+│  Project Manager Agent  │ (Local - High-level planning)
+│  - Plans tasks          │
+│  - Delegates work       │
+│  - Reviews outputs      │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Developer Agent       │ (Daytona Sandbox - Code execution)
+│  - Executes code        │
+│  - Manages files        │
+│  - Starts services      │
+│  - Provides previews    │
+└─────────────────────────┘
+```
+
+**Reference:** [Multi-Agent Claude Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/anthropic/multi-agent-claude-sdk)
+
+## Best Practices
+
+### Sandbox Management
+
+```typescript
+// Always clean up sandboxes
+try {
+  const sandbox = await createSandbox();
+  await runAgentTasks(sandbox);
+} finally {
+  await sandbox.delete();
+}
+
+// Or use context managers in Python
+with DaytonaSandbox() as sandbox:
+    run_agent_tasks(sandbox)
+```
+
+### Error Handling
+
+```typescript
+// Let agents handle and correct errors
+const agent = new Agent({
+  instructions: `When code execution fails:
+  1. Read the error message carefully
+  2. Diagnose the root cause
+  3. Fix the code and try again
+  4. Iterate until success`,
+});
+```
+
+### Preview Links
+
+```typescript
+// Generate preview links for deployed apps
+const previewUrl = sandbox.getPreviewUrl(port);
+console.log(`✅ App ready: ${previewUrl}`);
+// Example: https://5173-abc123.proxy.daytona.works
+```
+
+## Common Patterns
+
+### Web App Development
+
+1. Agent scaffolds project (React, Vue, etc.)
+2. Installs dependencies
+3. Writes application code
+4. Starts dev server
+5. Returns preview link
+
+### Testing Workflows
+
+1. Agent writes test suite
+2. Runs tests in sandbox
+3. Reads test output
+4. Fixes failures iteratively
+5. Reports final status
+
+### Build Automation
+
+1. Agent analyzes project structure
+2. Runs build commands
+3. Handles build errors
+4. Optimizes configuration
+5. Validates output
+
+## Related Resources
+
+- [Multi-Agent Systems](/guides/multi-agent-systems) - Advanced agent architectures
+- [Data Analysis](/guides/data-analysis) - AI-powered data workflows
+- [Jupyter Integration](/guides/jupyter-notebooks) - Interactive notebooks
+- [SDK Reference](/sdks/overview) - Sandbox management API

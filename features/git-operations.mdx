@@ -1,0 +1,403 @@
+---
+title: Git Operations
+description: Clone, manage, and interact with Git repositories in Daytona sandboxes
+---
+
+The Git API provides comprehensive Git repository management capabilities within sandbox environments, supporting authentication, branching, and all standard Git operations.
+
+## Overview
+
+Daytona's Git integration enables:
+- **Repository cloning** - Clone public and private repositories
+- **Branch management** - Create, checkout, and delete branches
+- **Commit operations** - Stage, commit, push, and pull changes
+- **Status tracking** - Monitor repository state and changes
+
+## Repository Cloning
+
+### Clone Public Repository
+
+Clone a public repository with default branch:
+
+```typescript
+await sandbox.git.clone(
+  'https://github.com/user/repo.git',
+  'workspace/repo'
+);
+```
+
+### Clone Specific Branch
+
+Clone a specific branch:
+
+```typescript
+await sandbox.git.clone(
+  'https://github.com/user/repo.git',
+  'workspace/repo',
+  'develop' // branch name
+);
+```
+
+### Clone Private Repository
+
+Clone with authentication credentials:
+
+```typescript
+await sandbox.git.clone(
+  'https://github.com/user/private-repo.git',
+  'workspace/private',
+  'main',          // branch
+  undefined,       // commitId
+  'username',      // GitHub username
+  'ghp_token123'   // Personal access token
+);
+```
+
+### Clone Specific Commit
+
+Clone and checkout a specific commit (detached HEAD):
+
+```typescript
+await sandbox.git.clone(
+  'https://github.com/user/repo.git',
+  'workspace/repo',
+  undefined,                    // branch
+  'abc123def456'                // commit ID
+);
+```
+
+<ParamField path="url" type="string" required>
+  Repository URL to clone from
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Destination path in sandbox. Relative paths resolved from sandbox working directory.
+</ParamField>
+
+<ParamField path="branch" type="string">
+  Specific branch to clone. If not specified, clones the default branch.
+</ParamField>
+
+<ParamField path="commitId" type="string">
+  Specific commit to checkout. Repository will be in detached HEAD state.
+</ParamField>
+
+<ParamField path="username" type="string">
+  Git username for authentication
+</ParamField>
+
+<ParamField path="password" type="string">
+  Git password or personal access token for authentication
+</ParamField>
+
+## Branch Management
+
+### List Branches
+
+Get all branches in the repository:
+
+```typescript
+const response = await sandbox.git.branches('workspace/repo');
+
+console.log('Branches:', response.branches);
+console.log('Current branch:', response.current);
+```
+
+### Create Branch
+
+Create a new branch:
+
+```typescript
+await sandbox.git.createBranch(
+  'workspace/repo',
+  'feature/new-feature'
+);
+```
+
+### Checkout Branch
+
+Switch to an existing branch:
+
+```typescript
+await sandbox.git.checkoutBranch(
+  'workspace/repo',
+  'develop'
+);
+```
+
+### Delete Branch
+
+Delete a branch:
+
+```typescript
+await sandbox.git.deleteBranch(
+  'workspace/repo',
+  'feature/old-feature'
+);
+```
+
+<ParamField path="path" type="string" required>
+  Path to Git repository root. Relative paths resolved from sandbox working directory.
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Branch name
+</ParamField>
+
+## Staging and Committing
+
+### Stage Files
+
+Add files to the staging area:
+
+```typescript
+// Stage specific files
+await sandbox.git.add(
+  'workspace/repo',
+  ['file1.txt', 'file2.js']
+);
+
+// Stage all changes
+await sandbox.git.add(
+  'workspace/repo',
+  ['.']
+);
+```
+
+### Commit Changes
+
+Commit staged changes:
+
+```typescript
+const response = await sandbox.git.commit(
+  'workspace/repo',
+  'Add new feature',           // commit message
+  'John Doe',                  // author name
+  'john@example.com',          // author email
+  false                        // allowEmpty
+);
+
+console.log('Commit SHA:', response.sha);
+```
+
+### Create Empty Commit
+
+Create a commit without changes:
+
+```typescript
+const response = await sandbox.git.commit(
+  'workspace/repo',
+  'Trigger CI',
+  'John Doe',
+  'john@example.com',
+  true  // allowEmpty
+);
+```
+
+<ParamField path="files" type="string[]" required>
+  List of file paths or directories to stage, relative to repository root
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Commit message describing the changes
+</ParamField>
+
+<ParamField path="author" type="string" required>
+  Name of the commit author
+</ParamField>
+
+<ParamField path="email" type="string" required>
+  Email address of the commit author
+</ParamField>
+
+<ParamField path="allowEmpty" type="boolean">
+  Allow creating an empty commit when no changes are staged
+</ParamField>
+
+## Push and Pull
+
+### Push to Remote
+
+Push local commits to remote repository:
+
+```typescript
+// Push to public repository
+await sandbox.git.push('workspace/repo');
+
+// Push to private repository with authentication
+await sandbox.git.push(
+  'workspace/repo',
+  'username',
+  'token'
+);
+```
+
+### Pull from Remote
+
+Pull changes from remote repository:
+
+```typescript
+// Pull from public repository
+await sandbox.git.pull('workspace/repo');
+
+// Pull from private repository with authentication
+await sandbox.git.pull(
+  'workspace/repo',
+  'username',
+  'token'
+);
+```
+
+<ParamField path="username" type="string">
+  Git username for authentication
+</ParamField>
+
+<ParamField path="password" type="string">
+  Git password or token for authentication
+</ParamField>
+
+## Repository Status
+
+### Get Status
+
+Check repository status:
+
+```typescript
+const status = await sandbox.git.status('workspace/repo');
+
+console.log('Current branch:', status.currentBranch);
+console.log('Commits ahead:', status.ahead);
+console.log('Commits behind:', status.behind);
+console.log('Branch published:', status.branchPublished);
+
+// Check file status
+status.fileStatus.forEach(file => {
+  console.log(`${file.status}: ${file.path}`);
+});
+```
+
+**Status Response:**
+
+```typescript
+interface GitStatus {
+  currentBranch: string;      // Name of current branch
+  ahead: number;              // Commits ahead of remote
+  behind: number;             // Commits behind remote
+  branchPublished: boolean;   // Whether branch exists on remote
+  fileStatus: FileStatus[];   // List of file changes
+}
+```
+
+## Complete Workflow Example
+
+```typescript
+import { Daytona } from '@daytonaio/sdk';
+
+const daytona = new Daytona();
+const sandbox = await daytona.create();
+
+try {
+  const repoPath = 'workspace/myproject';
+  
+  // Clone repository
+  await sandbox.git.clone(
+    'https://github.com/user/project.git',
+    repoPath,
+    'main'
+  );
+  
+  // Create and checkout new branch
+  await sandbox.git.createBranch(repoPath, 'feature/update-readme');
+  await sandbox.git.checkoutBranch(repoPath, 'feature/update-readme');
+  
+  // Make changes to files
+  await sandbox.fs.uploadFile(
+    Buffer.from('# Updated README'),
+    `${repoPath}/README.md`
+  );
+  
+  // Check status
+  const status = await sandbox.git.status(repoPath);
+  console.log('Modified files:', status.fileStatus.length);
+  
+  // Stage and commit
+  await sandbox.git.add(repoPath, ['README.md']);
+  const commit = await sandbox.git.commit(
+    repoPath,
+    'Update README with new information',
+    'Developer',
+    'dev@example.com'
+  );
+  
+  console.log('Created commit:', commit.sha);
+  
+  // Push changes (with authentication)
+  await sandbox.git.push(
+    repoPath,
+    'username',
+    'personal_access_token'
+  );
+  
+  console.log('Changes pushed successfully!');
+  
+} finally {
+  await daytona.delete(sandbox);
+}
+```
+
+## Authentication Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Personal Access Tokens">
+    For GitHub and GitLab, use personal access tokens instead of passwords:
+    
+    - **GitHub**: Generate at Settings → Developer settings → Personal access tokens
+    - **GitLab**: Generate at User Settings → Access Tokens
+    
+    Tokens should have appropriate scopes (repo read/write).
+  </Accordion>
+
+  <Accordion title="Store Credentials Securely">
+    Never hardcode credentials. Use environment variables or secret management:
+    
+    ```typescript
+    const token = process.env.GITHUB_TOKEN;
+    await sandbox.git.clone(url, path, branch, undefined, username, token);
+    ```
+  </Accordion>
+
+  <Accordion title="SSH Keys for Automated Workflows">
+    For automated workflows, consider using SSH keys instead of HTTPS with tokens.
+  </Accordion>
+</AccordionGroup>
+
+## Error Handling
+
+```typescript
+try {
+  await sandbox.git.clone(
+    'https://github.com/user/repo.git',
+    'workspace/repo'
+  );
+} catch (error) {
+  if (error.message.includes('authentication failed')) {
+    console.error('Invalid credentials');
+  } else if (error.message.includes('not found')) {
+    console.error('Repository does not exist');
+  } else {
+    console.error('Clone failed:', error.message);
+  }
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="File System" icon="folder" href="/features/filesystem-operations">
+    Manage files and directories in sandboxes
+  </Card>
+  
+  <Card title="Language Server Protocol" icon="code" href="/features/language-server-protocol">
+    Code intelligence for repository analysis
+  </Card>
+</CardGroup>

@@ -1,0 +1,489 @@
+---
+title: Jupyter Notebook Integration
+description: Run Jupyter notebooks in Daytona sandboxes for interactive data science and analysis workflows
+---
+
+## Overview
+
+Daytona sandboxes provide secure, isolated environments for running Jupyter notebooks with full Python capabilities, package management, and data processing - perfect for interactive data science, machine learning, and analysis workflows.
+
+## Getting Started
+
+### Quick Setup
+
+Launch a Jupyter notebook server in a Daytona sandbox:
+
+```typescript
+import { createSandbox } from '@daytona/sdk';
+
+// Create sandbox and install Jupyter
+const sandbox = await createSandbox({
+  name: 'jupyter-env',
+  public: true,  // Enable preview links
+});
+
+// Install Jupyter and common data science packages
+await sandbox.exec(`
+  pip install jupyter notebook pandas numpy matplotlib seaborn scikit-learn
+`);
+
+// Start Jupyter notebook server
+const server = await sandbox.exec(
+  'jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root',
+  { background: true }
+);
+
+// Get preview URL
+const notebookUrl = sandbox.getPreviewUrl(8888);
+console.log(`Jupyter Notebook: ${notebookUrl}`);
+// Example: https://8888-abc123.proxy.daytona.works
+```
+
+### Python SDK
+
+```python
+from daytona_sdk import Daytona
+import os
+
+client = Daytona(api_key=os.getenv('DAYTONA_API_KEY'))
+
+# Create sandbox
+sandbox = client.create_sandbox(
+    name='jupyter-env',
+    public=True
+)
+
+# Install Jupyter
+sandbox.exec('pip install jupyter notebook pandas matplotlib')
+
+# Start server
+sandbox.exec(
+    'jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root',
+    background=True
+)
+
+print(f'Jupyter: {sandbox.get_preview_url(8888)}')
+```
+
+## AI-Powered Notebooks
+
+### Automated Notebook Generation
+
+Use AI agents to generate and execute Jupyter notebooks:
+
+```python
+import openai
+from daytona_sdk import Daytona
+
+client = openai.OpenAI()
+darytona = Daytona()
+
+# Generate notebook code with AI
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{
+        "role": "user",
+        "content": """
+        Create a Jupyter notebook for exploratory data analysis:
+        1. Load CSV data
+        2. Show summary statistics
+        3. Create visualizations
+        4. Identify correlations
+        
+        Output as JSON cells format.
+        """
+    }]
+)
+
+notebook_cells = response.choices[0].message.content
+
+# Create sandbox and upload notebook
+sandbox = daytona.create_sandbox(public=True)
+sandbox.upload_file(
+    '/home/daytona/analysis.ipynb',
+    notebook_cells.encode()
+)
+
+# Start Jupyter
+sandbox.exec('pip install jupyter pandas matplotlib seaborn')
+sandbox.exec(
+    'jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser',
+    background=True
+)
+
+print(f'Open: {sandbox.get_preview_url(8888)}')
+```
+
+### Interactive Analysis with LangChain
+
+Combine Jupyter with LangChain for AI-assisted data analysis:
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain_daytona_data_analysis import DaytonaDataAnalysisTool
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+
+# Initialize components
+llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
+tool = DaytonaDataAnalysisTool()
+
+# Upload dataset to sandbox
+with open('dataset.csv', 'rb') as f:
+    tool.upload_file(
+        file=f,
+        description="Sales data with columns: date, product, revenue, quantity"
+    )
+
+# Create analysis agent
+agent = create_tool_calling_agent(llm, [tool], prompt)
+executor = AgentExecutor(agent=agent, tools=[tool])
+
+# Run interactive analysis
+queries = [
+    "Show me summary statistics for the dataset",
+    "What are the top 5 products by revenue?",
+    "Create a time series plot of daily revenue",
+    "Identify any seasonality patterns",
+]
+
+for query in queries:
+    print(f"\n> {query}")
+    result = executor.invoke({"input": query})
+    print(result["output"])
+
+# Results are generated in sandbox, can be viewed in Jupyter
+```
+
+## Advanced Configurations
+
+### JupyterLab Setup
+
+Run the more feature-rich JupyterLab interface:
+
+```typescript
+await sandbox.exec('pip install jupyterlab');
+
+await sandbox.exec(
+  'jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root',
+  { background: true }
+);
+
+const labUrl = sandbox.getPreviewUrl(8888);
+console.log(`JupyterLab: ${labUrl}`);
+```
+
+### Custom Kernel Installation
+
+Install additional Jupyter kernels:
+
+```bash
+# R kernel
+await sandbox.exec(`
+  apt-get update && apt-get install -y r-base
+  R -e "install.packages('IRkernel')"
+  R -e "IRkernel::installspec(user = FALSE)"
+`);
+
+# Julia kernel
+await sandbox.exec(`
+  wget https://julialang-s3.julialang.org/bin/linux/x64/1.9/julia-1.9.0-linux-x86_64.tar.gz
+  tar xvf julia-1.9.0-linux-x86_64.tar.gz
+  ./julia-1.9.0/bin/julia -e 'using Pkg; Pkg.add("IJulia")'
+`);
+```
+
+### Data Science Environment
+
+Create a fully-featured data science environment:
+
+```python
+# Install comprehensive package set
+packages = [
+    # Core
+    'jupyter', 'jupyterlab', 'notebook',
+    
+    # Data manipulation
+    'pandas', 'numpy', 'scipy',
+    
+    # Visualization
+    'matplotlib', 'seaborn', 'plotly', 'bokeh',
+    
+    # Machine learning
+    'scikit-learn', 'xgboost', 'tensorflow', 'pytorch',
+    
+    # Statistics
+    'statsmodels', 'scipy',
+    
+    # Utils
+    'openpyxl', 'xlrd', 'requests', 'beautifulsoup4',
+]
+
+sandbox.exec(f'pip install {" ".join(packages)}')
+```
+
+### GPU Support
+
+For machine learning workloads requiring GPU:
+
+```typescript
+const gpuSandbox = await createSandbox({
+  name: 'ml-notebook',
+  resources: {
+    gpu: '1',  // Request GPU
+    memory: '16Gi',
+    cpu: '4',
+  },
+  public: true,
+});
+
+// Install CUDA-enabled packages
+await gpuSandbox.exec(`
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+  pip install tensorflow[and-cuda]
+`);
+```
+
+## Common Workflows
+
+### Data Upload and Processing
+
+```typescript
+// Upload datasets to sandbox
+await sandbox.uploadFile(
+  './local-data.csv',
+  '/home/daytona/data.csv'
+);
+
+await sandbox.uploadFile(
+  './analysis.ipynb',
+  '/home/daytona/notebooks/analysis.ipynb'
+);
+
+// Install requirements
+await sandbox.uploadFile(
+  './requirements.txt',
+  '/home/daytona/requirements.txt'
+);
+await sandbox.exec('pip install -r requirements.txt');
+```
+
+### Automated Execution
+
+Execute notebooks programmatically:
+
+```python
+# Install nbconvert for execution
+sandbox.exec('pip install nbconvert')
+
+# Execute notebook
+result = sandbox.exec(
+    'jupyter nbconvert --to notebook --execute analysis.ipynb --output executed.ipynb'
+)
+
+# Download results
+sandbox.download_file(
+    '/home/daytona/executed.ipynb',
+    './results/executed.ipynb'
+)
+
+# Download generated artifacts
+sandbox.download_file(
+    '/home/daytona/output.png',
+    './results/output.png'
+)
+```
+
+### Collaborative Notebooks
+
+Share notebook environments with teams:
+
+```typescript
+// Create long-lived notebook environment
+const sharedSandbox = await createSandbox({
+  name: 'team-analysis',
+  public: true,
+  timeout: '24h',  // Keep alive for 24 hours
+});
+
+// Setup environment
+await setupJupyterEnvironment(sharedSandbox);
+
+// Share URL with team
+const notebookUrl = sharedSandbox.getPreviewUrl(8888);
+console.log(`Share this URL: ${notebookUrl}`);
+
+// Optional: Set password protection
+await sharedSandbox.exec(
+  `jupyter notebook password`,
+  { input: 'team-password\nteam-password\n' }
+);
+```
+
+### Scheduled Notebook Runs
+
+Schedule notebook execution for reporting:
+
+```python
+import schedule
+import time
+from daytona_sdk import Daytona
+
+def run_daily_report():
+    """Execute daily analysis notebook"""
+    daytona = Daytona()
+    sandbox = daytona.create_sandbox()
+    
+    try:
+        # Upload latest data
+        sandbox.upload_file('./daily-data.csv', '/data.csv')
+        
+        # Execute notebook
+        sandbox.exec('pip install jupyter nbconvert pandas matplotlib')
+        sandbox.exec(
+            'jupyter nbconvert --to html --execute report.ipynb'
+        )
+        
+        # Download report
+        sandbox.download_file(
+            '/home/daytona/report.html',
+            f'./reports/report-{date.today()}.html'
+        )
+        
+    finally:
+        sandbox.delete()
+
+# Schedule daily at 9 AM
+schedule.every().day.at("09:00").do(run_daily_report)
+
+while True:
+    schedule.run_pending()
+    time.sleep(60)
+```
+
+## Integration with Data Analysis Agents
+
+Combine Jupyter with AI coding agents for enhanced workflows:
+
+```python
+import dspy
+from daytona_interpreter import DaytonaInterpreter
+
+# Create interpreter for Jupyter environment
+interpreter = DaytonaInterpreter(
+    packages=['jupyter', 'pandas', 'matplotlib', 'seaborn']
+)
+
+# Create RLM that can use Jupyter-like REPL
+lm = dspy.LM("openrouter/anthropic/claude-3.5-sonnet")
+dspy.configure(lm=lm)
+
+rlm = dspy.RLM(
+    signature="data_question -> analysis: str",
+    interpreter=interpreter,
+    verbose=True,
+)
+
+# RLM executes Python code iteratively
+result = rlm(
+    data_question="""
+    Load the sales data, calculate monthly trends,
+    and create visualizations showing growth patterns.
+    """
+)
+
+print(result.analysis)
+interpreter.shutdown()
+```
+
+**Reference:** [DSPy RLM Integration](/guides/data-analysis#recursive-analysis-with-dspy)
+
+## Best Practices
+
+### Resource Management
+
+```typescript
+// Set appropriate timeouts
+const sandbox = await createSandbox({
+  timeout: '2h',  // Auto-cleanup after 2 hours
+  resources: {
+    memory: '8Gi',  // Sufficient for data processing
+    cpu: '4',
+  },
+});
+
+// Clean up when done
+try {
+  await runNotebookWorkflow(sandbox);
+} finally {
+  await sandbox.delete();
+}
+```
+
+### Security
+
+```python
+# Use tokens for authentication
+sandbox.exec(
+    'jupyter notebook --NotebookApp.token="secure-token-here"',
+    background=True
+)
+
+# Or disable auth for internal sandboxes only
+sandbox.exec(
+    'jupyter notebook --NotebookApp.token="" --NotebookApp.password=""',
+    background=True
+)
+```
+
+### Performance
+
+```python
+# Pre-install common packages in image
+# Create custom sandbox image with packages pre-installed
+# to reduce startup time
+
+# Use persistent storage for large datasets
+sandbox.mount_volume(
+    source='data-volume',
+    target='/home/daytona/data'
+)
+```
+
+## Troubleshooting
+
+### Notebook Server Not Starting
+
+```bash
+# Check if port is available
+await sandbox.exec('netstat -tuln | grep 8888');
+
+# View Jupyter logs
+await sandbox.exec('jupyter notebook list');
+```
+
+### Kernel Issues
+
+```bash
+# List available kernels
+await sandbox.exec('jupyter kernelspec list');
+
+# Reinstall kernel
+await sandbox.exec('python -m ipykernel install --user');
+```
+
+### Package Installation Failures
+
+```bash
+# Update pip first
+await sandbox.exec('pip install --upgrade pip');
+
+# Use specific package versions
+await sandbox.exec('pip install pandas==2.0.0');
+```
+
+## Related Resources
+
+- [Data Analysis](/guides/data-analysis) - AI-powered data workflows
+- [AI Coding Agents](/guides/ai-coding-agents) - Automated development
+- [Python SDK](/sdks/python) - Sandbox control via Python
+- [Network Configuration](/advanced/network-configuration) - Access notebook servers via port previews

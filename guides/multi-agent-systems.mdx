@@ -1,0 +1,593 @@
+---
+title: Multi-Agent Systems
+description: Build sophisticated multi-agent architectures with hierarchical coordination and specialized roles
+---
+
+## Overview
+
+Multi-agent systems enable complex workflows by distributing tasks across specialized agents. Daytona sandboxes provide the perfect environment for running multiple agents, each with isolated execution contexts and specialized capabilities.
+
+## Architecture Patterns
+
+### Hierarchical Agent Systems
+
+Separate high-level planning from low-level execution with a manager-worker pattern.
+
+**Two-Agent Architecture:**
+
+```
+┌─────────────────────────┐
+│        User             │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Project Manager Agent  │ (Local - Planning & Coordination)
+│  - Analyzes requests    │
+│  - Breaks down tasks    │
+│  - Delegates to workers │
+│  - Reviews outputs      │
+│  - Reports to user      │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Developer Agent       │ (Daytona Sandbox - Execution)
+│  - Executes code        │
+│  - Manages files        │
+│  - Runs tests           │
+│  - Starts services      │
+│  - Provides previews    │
+└─────────────────────────┘
+```
+
+### Implementation Example
+
+**Claude SDK Multi-Agent System:**
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { createSandbox } from '@daytona/sdk';
+
+// Project Manager Agent (runs locally)
+const projectManager = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// Create Developer Agent sandbox
+const devSandbox = await createSandbox({
+  name: 'developer-agent',
+  public: true,
+});
+
+// Install Claude Agent SDK in sandbox
+await devSandbox.exec(
+  'curl -fsSL https://claude.ai/agent/install.sh | sh'
+);
+
+// Project Manager system prompt
+const PM_SYSTEM = `You are a Project Manager Agent.
+
+When you need development work:
+1. Analyze the user request
+2. Break it into clear tasks
+3. Delegate using <developer_task> tags
+4. Review the Developer Agent's output
+5. Decide if more work is needed
+6. Say "TASK_COMPLETE" when finished
+
+Example delegation:
+<developer_task>
+Create a web game with:
+- HTML/CSS/JavaScript
+- Canvas graphics
+- Physics simulation
+- Keyboard controls
+- Start on port 80
+</developer_task>`;
+
+// Main interaction loop
+async function runMultiAgent(userRequest: string) {
+  let conversationHistory = [];
+  
+  conversationHistory.push({
+    role: 'user',
+    content: userRequest,
+  });
+  
+  while (true) {
+    // Project Manager processes request
+    const pmResponse = await projectManager.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: PM_SYSTEM,
+      messages: conversationHistory,
+    });
+    
+    console.log('[Project Manager]:', pmResponse.content);
+    
+    // Check if task is complete
+    if (pmResponse.content.includes('TASK_COMPLETE')) {
+      break;
+    }
+    
+    // Extract developer task if present
+    const taskMatch = pmResponse.content.match(
+      /<developer_task>([\s\S]*?)<\/developer_task>/
+    );
+    
+    if (taskMatch) {
+      const developerTask = taskMatch[1].trim();
+      
+      console.log('[Delegating to Developer Agent]...');
+      
+      // Execute in Developer Agent sandbox
+      const devResult = await executeDeveloperTask(
+        devSandbox,
+        developerTask
+      );
+      
+      console.log('[Developer Agent]:', devResult);
+      
+      // Add to conversation
+      conversationHistory.push({
+        role: 'assistant',
+        content: pmResponse.content,
+      });
+      conversationHistory.push({
+        role: 'user',
+        content: `Developer Agent completed the task:\n${devResult}`,
+      });
+    }
+  }
+}
+
+// Execute task in Developer Agent
+async function executeDeveloperTask(
+  sandbox: Sandbox,
+  task: string
+): Promise<string> {
+  // Run Claude agent in sandbox with task
+  const result = await sandbox.exec(
+    `claude-agent run "${task.replace(/"/g, '\\"')}"`,
+    { env: { ANTHROPIC_API_KEY: process.env.SANDBOX_ANTHROPIC_API_KEY } }
+  );
+  
+  return result.stdout;
+}
+
+// Example usage
+await runMultiAgent('Build a lunar lander web game');
+
+// Cleanup
+await devSandbox.delete();
+```
+
+**Example Output:**
+
+```
+[Project Manager]: I'll help you create a lunar lander web game! 
+Let me delegate this to the Developer Agent.
+
+<developer_task>
+Create a lunar lander web game with:
+- HTML/CSS/JavaScript based
+- Canvas graphics for rendering
+- Physics simulation (gravity, thrust, velocity)
+- Keyboard controls (arrow keys)
+- Landing detection (safe vs crash)
+- Fuel management system
+- Start the game on port 80
+</developer_task>
+
+[Delegating to Developer Agent]...
+
+[Developer Agent]: I'll build a complete lunar lander game.
+🔨 Write /home/daytona/index.html
+🔨 Write /home/daytona/game.js
+🔨 Write /home/daytona/style.css
+🔨 Bash: python3 -m http.server 80
+
+Your Lunar Lander game is live at:
+🌐 https://80-17ac1c0f-d684-4122-93b5-8f52fd5393f8.proxy.daytona.works
+
+[Project Manager]: Excellent! The Developer Agent has successfully 
+created your lunar lander web game. The implementation includes:
+
+✓ Physics simulation with gravity and thrust
+✓ Canvas-based graphics
+✓ Keyboard controls
+✓ Landing detection
+✓ Fuel management
+✓ Web server running on port 80
+
+TASK_COMPLETE
+```
+
+**Reference:** [Multi-Agent Claude Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/anthropic/multi-agent-claude-sdk)
+
+## Benefits of Multi-Agent Architecture
+
+### Separation of Concerns
+
+**Project Manager:**
+- High-level reasoning and planning
+- Task decomposition
+- Progress tracking
+- Quality review
+- User communication
+
+**Developer Agent:**
+- Code execution
+- File management
+- Testing and validation
+- Service deployment
+- Technical implementation
+
+### Security Isolation
+
+```typescript
+// Manager runs locally with user credentials
+const manager = new Agent({ 
+  apiKey: process.env.MANAGER_API_KEY,
+  runLocation: 'local'
+});
+
+// Worker runs in isolated sandbox
+const worker = await createAgentSandbox({
+  apiKey: process.env.WORKER_API_KEY,  // Separate key
+  isolated: true,
+  resources: {
+    cpu: '2',
+    memory: '4Gi'
+  }
+});
+```
+
+### Resource Optimization
+
+```typescript
+// Manager: Lightweight, always running
+const manager = createManager({ 
+  model: 'claude-haiku-4',  // Fast, cheap
+  maxTokens: 1024
+});
+
+// Workers: Powerful, ephemeral
+const worker = await createWorker({
+  model: 'claude-sonnet-4',  // Capable, thorough
+  maxTokens: 8192,
+  sandbox: {
+    autoDelete: true,  // Clean up after task
+    timeout: '30m'
+  }
+});
+```
+
+## Advanced Patterns
+
+### Parallel Worker Agents
+
+Run multiple specialized agents concurrently.
+
+```typescript
+const tasks = [
+  { type: 'frontend', description: 'Build React UI' },
+  { type: 'backend', description: 'Create API server' },
+  { type: 'tests', description: 'Write test suite' },
+];
+
+// Create specialized sandboxes
+const workers = await Promise.all([
+  createSandbox({ name: 'frontend-agent', image: 'node:20' }),
+  createSandbox({ name: 'backend-agent', image: 'python:3.11' }),
+  createSandbox({ name: 'test-agent', image: 'node:20' }),
+]);
+
+// Execute tasks in parallel
+const results = await Promise.all(
+  tasks.map((task, i) => 
+    executeAgentTask(workers[i], task.description)
+  )
+);
+
+// Manager integrates results
+const integration = await manager.integrate(results);
+```
+
+### Specialist Agent Teams
+
+```typescript
+const team = {
+  architect: await createAgent({
+    role: 'Software Architect',
+    expertise: 'System design, patterns, best practices',
+    sandbox: architectSandbox,
+  }),
+  
+  developer: await createAgent({
+    role: 'Developer',
+    expertise: 'Implementation, coding, debugging',
+    sandbox: devSandbox,
+  }),
+  
+  tester: await createAgent({
+    role: 'QA Engineer',
+    expertise: 'Testing, validation, quality assurance',
+    sandbox: testSandbox,
+  }),
+  
+  devops: await createAgent({
+    role: 'DevOps Engineer',
+    expertise: 'Deployment, monitoring, infrastructure',
+    sandbox: opsSandbox,
+  }),
+};
+
+// Workflow coordination
+async function buildFeature(requirement: string) {
+  // 1. Architect designs system
+  const design = await team.architect.design(requirement);
+  
+  // 2. Developer implements
+  const code = await team.developer.implement(design);
+  
+  // 3. Tester validates
+  const testResults = await team.tester.test(code);
+  
+  // 4. DevOps deploys
+  if (testResults.passed) {
+    return await team.devops.deploy(code);
+  }
+}
+```
+
+### Chain-of-Thought Delegation
+
+```typescript
+const manager = createManager({
+  system: `When handling complex requests:
+  
+  1. Analyze requirements
+  2. Identify required expertise
+  3. Delegate to appropriate specialist
+  4. Validate each step's output
+  5. Coordinate dependencies
+  6. Integrate final solution
+  
+  Available specialists:
+  - data_analyst: For data processing and analysis
+  - ml_engineer: For model training and deployment
+  - backend_dev: For API and server development
+  - frontend_dev: For UI/UX implementation`
+});
+```
+
+## Communication Patterns
+
+### Tagged Delegation
+
+```typescript
+// Manager uses XML tags for clear delegation
+const managerPrompt = `Use these tags to delegate:
+
+<data_analysis>
+Task description for data analyst
+</data_analysis>
+
+<code_implementation>
+Task description for developer
+</code_implementation>
+
+<testing>
+Task description for tester
+</testing>`;
+
+// Parse and route
+function routeTask(response: string) {
+  if (response.includes('<data_analysis>')) {
+    return { agent: 'data_analyst', task: extractTag(response, 'data_analysis') };
+  }
+  // ... other routing logic
+}
+```
+
+### Structured Handoffs
+
+```typescript
+interface TaskHandoff {
+  from: string;
+  to: string;
+  task: string;
+  context: Record<string, any>;
+  artifacts: string[];
+}
+
+async function handoff(params: TaskHandoff) {
+  console.log(`[${params.from}] → [${params.to}]: ${params.task}`);
+  
+  return await agents[params.to].execute({
+    task: params.task,
+    context: params.context,
+    artifacts: params.artifacts,
+  });
+}
+```
+
+## Best Practices
+
+### Clear Role Definitions
+
+```typescript
+const roles = {
+  manager: {
+    responsibilities: [
+      'Analyze user requests',
+      'Plan task breakdown',
+      'Delegate to specialists',
+      'Review outputs',
+      'Coordinate integration'
+    ],
+    capabilities: ['planning', 'coordination', 'review'],
+    constraints: ['no code execution', 'no direct file access']
+  },
+  
+  worker: {
+    responsibilities: [
+      'Execute assigned tasks',
+      'Implement solutions',
+      'Report progress',
+      'Handle errors'
+    ],
+    capabilities: ['code_execution', 'file_management', 'testing'],
+    constraints: ['task scope only', 'no planning']
+  }
+};
+```
+
+### Error Handling & Recovery
+
+```typescript
+async function resilientDelegation(
+  task: string,
+  maxRetries = 3
+) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await worker.execute(task);
+      
+      // Manager validates result
+      if (await manager.validate(result)) {
+        return result;
+      }
+      
+      // Invalid result - provide feedback
+      task = await manager.provideFeedback(result);
+      
+    } catch (error) {
+      console.log(`Attempt ${attempt} failed:`, error);
+      
+      if (attempt === maxRetries) {
+        return await manager.handleFailure(task, error);
+      }
+      
+      // Manager adjusts task based on error
+      task = await manager.adjustTask(task, error);
+    }
+  }
+}
+```
+
+### Resource Management
+
+```typescript
+class AgentPool {
+  private workers: Sandbox[] = [];
+  
+  async getWorker(): Promise<Sandbox> {
+    // Reuse idle worker or create new one
+    const idle = this.workers.find(w => w.status === 'idle');
+    if (idle) return idle;
+    
+    const worker = await createSandbox();
+    this.workers.push(worker);
+    return worker;
+  }
+  
+  async cleanup() {
+    // Clean up all workers
+    await Promise.all(
+      this.workers.map(w => w.delete())
+    );
+  }
+}
+```
+
+### Progress Tracking
+
+```typescript
+interface TaskProgress {
+  taskId: string;
+  agent: string;
+  status: 'queued' | 'in_progress' | 'completed' | 'failed';
+  progress: number;  // 0-100
+  output?: string;
+  error?: string;
+}
+
+class MultiAgentOrchestrator {
+  private tasks = new Map<string, TaskProgress>();
+  
+  async delegate(agent: string, task: string) {
+    const taskId = generateId();
+    
+    this.tasks.set(taskId, {
+      taskId,
+      agent,
+      status: 'queued',
+      progress: 0,
+    });
+    
+    // Execute with progress updates
+    await this.executeWithTracking(taskId, agent, task);
+  }
+  
+  getProgress(taskId: string): TaskProgress {
+    return this.tasks.get(taskId);
+  }
+}
+```
+
+## Common Use Cases
+
+### Full-Stack Development
+
+```typescript
+// Manager coordinates full-stack build
+const result = await manager.run(`
+  Build a todo app with:
+  - React frontend
+  - Node.js API
+  - PostgreSQL database
+  - Full test coverage
+`);
+
+// Manager delegates to specialists:
+// 1. Frontend agent → React UI
+// 2. Backend agent → API server
+// 3. Database agent → Schema & migrations
+// 4. Test agent → Integration tests
+// 5. DevOps agent → Deployment
+```
+
+### Data Pipeline
+
+```typescript
+// Data processing workflow
+const pipeline = await manager.orchestrate([
+  { agent: 'ingestion', task: 'Fetch data from API' },
+  { agent: 'cleaning', task: 'Clean and validate data' },
+  { agent: 'analysis', task: 'Generate insights' },
+  { agent: 'visualization', task: 'Create dashboards' },
+  { agent: 'reporting', task: 'Write summary report' },
+]);
+```
+
+### Research & Development
+
+```typescript
+// R&D workflow with specialists
+const research = await manager.coordinate({
+  literature_review: 'Research agent surveys papers',
+  experimentation: 'ML agent runs experiments',
+  analysis: 'Stats agent analyzes results',
+  documentation: 'Writer agent creates report',
+});
+```
+
+## Related Resources
+
+- [AI Coding Agents](/guides/ai-coding-agents) - Single-agent patterns
+- [Data Analysis](/guides/data-analysis) - Specialized data agents
+- [Monitoring](/guides/monitoring-observability) - Track multi-agent systems
+- [SDK Reference](/sdks/overview) - Sandbox orchestration API

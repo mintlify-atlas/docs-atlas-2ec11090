@@ -1,0 +1,351 @@
+---
+title: Regions
+description: Select regions and configure multi-region deployment for Daytona sandboxes
+---
+
+## Overview
+
+Daytona supports multi-region deployment, allowing you to create sandboxes in different geographical locations. This enables you to:
+- Reduce latency by placing sandboxes close to your users or data
+- Comply with data residency requirements
+- Distribute workloads across regions for better availability
+
+## Region Selection
+
+### Specify Target Region
+
+When creating a sandbox, you can specify the target region:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+// Configure Daytona with a default region
+const daytona = new Daytona({
+  apiKey: 'your-api-key',
+  target: 'us-east'  // Default region for all sandboxes
+})
+
+// Create sandbox in the default region
+const sandbox = await daytona.create()
+
+console.log(`Sandbox region: ${sandbox.target}`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+# Configure Daytona with a default region
+daytona = Daytona(
+    api_key='your-api-key',
+    target='us-east'  # Default region for all sandboxes
+)
+
+# Create sandbox in the default region
+sandbox = daytona.create()
+
+print(f'Sandbox region: {sandbox.target}')
+```
+</CodeGroup>
+
+### Environment Variable Configuration
+
+Set the default region using environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_TARGET="us-east"
+```
+
+Then use the SDK without explicit configuration:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+// Uses DAYTONA_TARGET from environment
+const daytona = new Daytona()
+const sandbox = await daytona.create()
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+# Uses DAYTONA_TARGET from environment
+daytona = Daytona()
+sandbox = daytona.create()
+```
+</CodeGroup>
+
+## Multi-Region Deployment
+
+### Deploy to Multiple Regions
+
+Create sandboxes in different regions for the same application:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+// Create Daytona clients for different regions
+const daytonaUSEast = new Daytona({ target: 'us-east' })
+const daytonaEUWest = new Daytona({ target: 'eu-west' })
+const daytonaAPSouth = new Daytona({ target: 'ap-south' })
+
+// Deploy to multiple regions
+const usEastSandbox = await daytonaUSEast.create({
+  labels: { region: 'us-east', app: 'api' }
+})
+
+const euWestSandbox = await daytonaEUWest.create({
+  labels: { region: 'eu-west', app: 'api' }
+})
+
+const apSouthSandbox = await daytonaAPSouth.create({
+  labels: { region: 'ap-south', app: 'api' }
+})
+
+console.log('Multi-region deployment complete')
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+# Create Daytona clients for different regions
+daytona_us_east = Daytona(target='us-east')
+daytona_eu_west = Daytona(target='eu-west')
+daytona_ap_south = Daytona(target='ap-south')
+
+# Deploy to multiple regions
+us_east_sandbox = daytona_us_east.create(
+    labels={'region': 'us-east', 'app': 'api'}
+)
+
+eu_west_sandbox = daytona_eu_west.create(
+    labels={'region': 'eu-west', 'app': 'api'}
+)
+
+ap_south_sandbox = daytona_ap_south.create(
+    labels={'region': 'ap-south', 'app': 'api'}
+)
+
+print('Multi-region deployment complete')
+```
+</CodeGroup>
+
+## Region Information
+
+### Check Sandbox Region
+
+Every sandbox has a `target` property indicating its region:
+
+<CodeGroup>
+```typescript TypeScript
+const sandbox = await daytona.get('sandbox-id')
+
+console.log(`Sandbox ID: ${sandbox.id}`)
+console.log(`Region: ${sandbox.target}`)
+console.log(`Organization: ${sandbox.organizationId}`)
+```
+
+```python Python
+sandbox = daytona.get('sandbox-id')
+
+print(f'Sandbox ID: {sandbox.id}')
+print(f'Region: {sandbox.target}')
+print(f'Organization: {sandbox.organization_id}')
+```
+</CodeGroup>
+
+### List Sandboxes by Region
+
+<CodeGroup>
+```typescript TypeScript
+// List all sandboxes in a specific region
+const usEastDaytona = new Daytona({ target: 'us-east' })
+const result = await usEastDaytona.list()
+
+console.log(`Sandboxes in us-east: ${result.total}`)
+for (const sandbox of result.items) {
+  console.log(`  ${sandbox.id} - ${sandbox.target}`)
+}
+```
+
+```python Python
+# List all sandboxes in a specific region
+us_east_daytona = Daytona(target='us-east')
+result = us_east_daytona.list()
+
+print(f'Sandboxes in us-east: {result.total}')
+for sandbox in result.items:
+    print(f'  {sandbox.id} - {sandbox.target}')
+```
+</CodeGroup>
+
+## Region-Specific Use Cases
+
+### Data Residency Compliance
+
+Ensure data stays within a specific region:
+
+```typescript
+// Create sandbox in EU region for GDPR compliance
+const euDaytona = new Daytona({
+  target: 'eu-west'
+})
+
+const gdprSandbox = await euDaytona.create({
+  labels: {
+    compliance: 'gdpr',
+    data_region: 'eu'
+  }
+})
+
+console.log(`GDPR-compliant sandbox in: ${gdprSandbox.target}`)
+```
+
+### Low-Latency Access
+
+Create sandboxes close to your users or data sources:
+
+```typescript
+// Create sandbox near user location
+const getUserRegion = (userLocation: string): string => {
+  const regionMap: Record<string, string> = {
+    'north-america': 'us-east',
+    'europe': 'eu-west',
+    'asia': 'ap-south'
+  }
+  return regionMap[userLocation] || 'us-east'
+}
+
+const userLocation = 'europe'
+const region = getUserRegion(userLocation)
+
+const daytona = new Daytona({ target: region })
+const sandbox = await daytona.create({
+  labels: {
+    user_region: userLocation
+  }
+})
+
+console.log(`Created sandbox in ${sandbox.target} for ${userLocation}`)
+```
+
+### Multi-Region Testing
+
+Test applications across different regions:
+
+```typescript
+const regions = ['us-east', 'eu-west', 'ap-south']
+const sandboxes = []
+
+for (const region of regions) {
+  const daytona = new Daytona({ target: region })
+  const sandbox = await daytona.create({
+    snapshot: 'test-environment',
+    labels: {
+      test_id: 'multi-region-test',
+      region: region
+    }
+  })
+  sandboxes.push(sandbox)
+  console.log(`Test sandbox created in ${region}`)
+}
+
+console.log(`Created ${sandboxes.length} test sandboxes`)
+```
+
+## Region Configuration
+
+### Available Regions
+
+Region availability depends on your organization's configuration. Common regions include:
+
+- `us-east` - US East Coast
+- `us-west` - US West Coast
+- `eu-west` - Europe West
+- `eu-central` - Europe Central
+- `ap-south` - Asia Pacific South
+- `ap-northeast` - Asia Pacific Northeast
+
+Contact your organization administrator for the list of available regions.
+
+### Default Region
+
+If no region is specified:
+- The client uses the region from `DAYTONA_TARGET` environment variable
+- If not set, uses your organization's default region
+
+## Snapshots and Regions
+
+Snapshots are region-specific. When creating a snapshot, it's stored in the specified region:
+
+```typescript
+const usEastDaytona = new Daytona({ target: 'us-east' })
+
+// Create snapshot in us-east region
+await usEastDaytona.snapshot.create(
+  {
+    name: 'my-snapshot',
+    image: Image.debianSlim('3.12')
+  },
+  { onLogs: console.log }
+)
+
+// Use snapshot in the same region
+const sandbox = await usEastDaytona.create({
+  snapshot: 'my-snapshot'
+})
+
+console.log(`Sandbox and snapshot in: ${sandbox.target}`)
+```
+
+## Resource Quotas
+
+Resource availability and quotas may vary by region. Your organization may have:
+- Different resource limits per region
+- Different available machine types per region
+- Region-specific pricing
+
+## Best Practices
+
+1. **Choose the right region**: Select regions based on user location, data location, and compliance requirements.
+
+2. **Use consistent regions**: Keep related sandboxes (e.g., frontend and backend) in the same region for low latency.
+
+3. **Label by region**: Use labels to track which region each sandbox belongs to.
+
+4. **Plan for snapshots**: Remember that snapshots are region-specific and plan accordingly.
+
+5. **Monitor costs**: Different regions may have different pricing structures.
+
+6. **Test multi-region**: If deploying globally, test your application in all target regions.
+
+7. **Consider data transfer**: Moving large amounts of data between regions can be slow and costly.
+
+## Region Configuration Reference
+
+### DaytonaConfig
+
+```typescript
+interface DaytonaConfig {
+  apiKey?: string
+  apiUrl?: string
+  target?: string  // Region identifier
+}
+```
+
+### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `DAYTONA_TARGET` | Default region for sandboxes | `us-east` |
+| `DAYTONA_API_URL` | API endpoint URL | `https://app.daytona.io/api` |
+| `DAYTONA_API_KEY` | API authentication key | `your-api-key` |
+
+## Related
+
+- [Resource Management](/advanced/resource-management) - Configure resources by region
+- [Custom Images](/advanced/custom-images) - Build images in specific regions
+- [Monitoring](/advanced/monitoring) - Track regional sandbox usage

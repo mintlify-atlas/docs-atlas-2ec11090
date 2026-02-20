@@ -1,0 +1,92 @@
+---
+title: Toolbox API Overview
+description: Internal API for sandbox operations in Daytona
+---
+
+The Toolbox API is an HTTP REST API that runs inside Daytona sandboxes, providing programmatic access to sandbox operations including process execution, file system management, Git operations, and LSP functionality.
+
+## What is the Toolbox API?
+
+The Toolbox API is an internal service that:
+
+- Runs automatically inside every Daytona sandbox
+- Provides RESTful endpoints for sandbox operations
+- Enables automation and integration with development tools
+- Powers the Daytona SDKs (TypeScript, Python, Ruby, Go)
+
+## How It Works
+
+When a Daytona sandbox starts, the Toolbox API server automatically launches and listens on a local port. The API provides authenticated access to sandbox resources through HTTP endpoints organized by functionality:
+
+- **Process** - Execute commands, manage PTY sessions, and shell sessions
+- **File System** - Read, write, search, and manage files and directories
+- **Git** - Clone repositories, manage branches, commit, push, and pull changes
+- **LSP** - Language Server Protocol integration for code intelligence
+- **Port** - Manage and query network ports
+- **Computer Use** - GUI automation capabilities (keyboard, mouse, screenshots)
+
+## Authentication
+
+The Toolbox API requires authentication via bearer token:
+
+```bash
+Authorization: Bearer <token>
+```
+
+The token is automatically configured when using the official Daytona SDKs.
+
+## For Internal Use via SDKs
+
+<Warning>
+The Toolbox API is designed for **internal use** through the official Daytona SDKs. Direct API calls are not recommended for production use.
+</Warning>
+
+Instead of calling the Toolbox API directly, use the appropriate SDK:
+
+- **TypeScript/JavaScript**: `@daytona/sdk`
+- **Python**: `daytona-sdk`
+- **Ruby**: `daytona-sdk`
+- **Go**: `github.com/daytonaio/daytona/pkg/sdk`
+
+These SDKs provide:
+- Type-safe interfaces
+- Error handling
+- Automatic authentication
+- Connection management
+- Higher-level abstractions
+
+## Base URL
+
+The Toolbox API runs on `http://localhost:<port>` inside the sandbox. The port is dynamically assigned and available through the SDK configuration.
+
+## API Organization
+
+The API endpoints are organized into logical groups:
+
+| Group | Endpoints | Description |
+|-------|-----------|-------------|
+| Process | `/process/*` | Command execution, PTY, and sessions |
+| File System | `/files/*` | File and directory operations |
+| Git | `/git/*` | Version control operations |
+| LSP | `/lsp/*` | Language server integration |
+| Port | `/port/*` | Port management |
+| Computer Use | `/computeruse/*` | GUI automation |
+| Info | `/version`, `/work-dir`, `/user-home-dir` | System information |
+| Server | `/init` | Server initialization |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Process API" icon="terminal" href="/api/toolbox/process">
+    Execute commands and manage processes
+  </Card>
+  <Card title="File System API" icon="folder" href="/api/toolbox/filesystem">
+    Manage files and directories
+  </Card>
+  <Card title="Git API" icon="code-branch" href="/api/toolbox/git">
+    Version control operations
+  </Card>
+  <Card title="LSP API" icon="code" href="/api/toolbox/lsp">
+    Language server integration
+  </Card>
+</CardGroup>

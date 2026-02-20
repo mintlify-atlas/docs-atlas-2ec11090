@@ -1,0 +1,598 @@
+---
+title: Computer Use
+description: Desktop automation with mouse, keyboard, and screenshot capabilities
+---
+
+The Computer Use API provides comprehensive desktop automation capabilities, enabling programmatic control of mouse, keyboard, screenshots, and screen recording within sandbox environments.
+
+## Overview
+
+Daytona's Computer Use functionality enables:
+- **Mouse control** - Move, click, drag, and scroll
+- **Keyboard control** - Type text and press keys
+- **Screenshots** - Capture full screen or regions
+- **Display management** - Query display information and windows
+- **Screen recording** - Record and download desktop sessions
+
+## Getting Started
+
+### Start Computer Use
+
+Initialize the desktop environment:
+
+```typescript
+const result = await sandbox.computerUse.start();
+console.log('Desktop started:', result.message);
+```
+
+This starts all required processes (Xvfb, xfce4, x11vnc, novnc).
+
+### Check Status
+
+```typescript
+const status = await sandbox.computerUse.getStatus();
+console.log('Status:', status.status);
+```
+
+### Stop Computer Use
+
+```typescript
+const result = await sandbox.computerUse.stop();
+console.log('Desktop stopped:', result.message);
+```
+
+## Mouse Operations
+
+### Get Mouse Position
+
+```typescript
+const position = await sandbox.computerUse.mouse.getPosition();
+console.log(`Mouse at: ${position.x}, ${position.y}`);
+```
+
+### Move Mouse
+
+```typescript
+const result = await sandbox.computerUse.mouse.move(100, 200);
+console.log(`Moved to: ${result.x}, ${result.y}`);
+```
+
+<ParamField path="x" type="number" required>
+  X coordinate to move to
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate to move to
+</ParamField>
+
+### Click Mouse
+
+```typescript
+// Single left click
+const result = await sandbox.computerUse.mouse.click(100, 200);
+
+// Double click
+const doubleClick = await sandbox.computerUse.mouse.click(
+  100, 200,
+  'left',  // button
+  true     // double
+);
+
+// Right click
+const rightClick = await sandbox.computerUse.mouse.click(
+  100, 200,
+  'right'
+);
+
+// Middle click
+const middleClick = await sandbox.computerUse.mouse.click(
+  100, 200,
+  'middle'
+);
+```
+
+<ParamField path="x" type="number" required>
+  X coordinate to click at
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate to click at
+</ParamField>
+
+<ParamField path="button" type="string">
+  Mouse button: 'left' (default), 'right', or 'middle'
+</ParamField>
+
+<ParamField path="double" type="boolean">
+  Whether to perform a double-click. Default is false.
+</ParamField>
+
+### Drag Mouse
+
+```typescript
+const result = await sandbox.computerUse.mouse.drag(
+  50, 50,    // start x, y
+  150, 150   // end x, y
+);
+
+console.log(`Dragged from (${result.from.x},${result.from.y}) to (${result.to.x},${result.to.y})`);
+```
+
+<ParamField path="startX" type="number" required>
+  Starting X coordinate
+</ParamField>
+
+<ParamField path="startY" type="number" required>
+  Starting Y coordinate
+</ParamField>
+
+<ParamField path="endX" type="number" required>
+  Ending X coordinate
+</ParamField>
+
+<ParamField path="endY" type="number" required>
+  Ending Y coordinate
+</ParamField>
+
+<ParamField path="button" type="string">
+  Mouse button to use for dragging. Default is 'left'.
+</ParamField>
+
+### Scroll Mouse
+
+```typescript
+// Scroll up
+const scrollUp = await sandbox.computerUse.mouse.scroll(
+  100, 200,  // x, y
+  'up',      // direction
+  3          // amount
+);
+
+// Scroll down
+const scrollDown = await sandbox.computerUse.mouse.scroll(
+  100, 200,
+  'down',
+  5
+);
+```
+
+<ParamField path="x" type="number" required>
+  X coordinate to scroll at
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate to scroll at
+</ParamField>
+
+<ParamField path="direction" type="'up' | 'down'" required>
+  Scroll direction
+</ParamField>
+
+<ParamField path="amount" type="number">
+  Amount to scroll. Default is 1.
+</ParamField>
+
+## Keyboard Operations
+
+### Type Text
+
+```typescript
+// Type text normally
+await sandbox.computerUse.keyboard.type('Hello, World!');
+
+// Type with delay between characters
+await sandbox.computerUse.keyboard.type(
+  'Slow typing',
+  100  // 100ms delay
+);
+```
+
+<ParamField path="text" type="string" required>
+  Text to type
+</ParamField>
+
+<ParamField path="delay" type="number">
+  Delay between characters in milliseconds. Default is 0.
+</ParamField>
+
+### Press Keys
+
+```typescript
+// Press Enter
+await sandbox.computerUse.keyboard.press('Return');
+
+// Press Escape
+await sandbox.computerUse.keyboard.press('Escape');
+
+// Press Tab
+await sandbox.computerUse.keyboard.press('Tab');
+
+// Press with modifiers (Ctrl+C)
+await sandbox.computerUse.keyboard.press('c', ['ctrl']);
+
+// Press with multiple modifiers (Ctrl+Shift+T)
+await sandbox.computerUse.keyboard.press('t', ['ctrl', 'shift']);
+```
+
+<ParamField path="key" type="string" required>
+  Key to press (e.g., 'Return', 'Escape', 'Tab', 'a', 'A')
+</ParamField>
+
+<ParamField path="modifiers" type="string[]">
+  Modifier keys: 'ctrl', 'alt', 'meta', 'shift'. Default is empty array.
+</ParamField>
+
+### Press Hotkeys
+
+```typescript
+// Copy
+await sandbox.computerUse.keyboard.hotkey('ctrl+c');
+
+// Paste
+await sandbox.computerUse.keyboard.hotkey('ctrl+v');
+
+// Save
+await sandbox.computerUse.keyboard.hotkey('ctrl+s');
+
+// Alt+Tab
+await sandbox.computerUse.keyboard.hotkey('alt+tab');
+
+// Cmd+Shift+T (Mac)
+await sandbox.computerUse.keyboard.hotkey('cmd+shift+t');
+```
+
+<ParamField path="keys" type="string" required>
+  Hotkey combination (e.g., 'ctrl+c', 'alt+tab', 'cmd+shift+t')
+</ParamField>
+
+## Screenshots
+
+### Full Screen Screenshot
+
+```typescript
+const screenshot = await sandbox.computerUse.screenshot.takeFullScreen();
+
+console.log(`Screenshot: ${screenshot.width}x${screenshot.height}`);
+console.log(`Base64 image: ${screenshot.image.substring(0, 50)}...`);
+
+// With cursor visible
+const withCursor = await sandbox.computerUse.screenshot.takeFullScreen(true);
+```
+
+<ParamField path="showCursor" type="boolean">
+  Whether to show cursor in screenshot. Default is false.
+</ParamField>
+
+### Region Screenshot
+
+Capture a specific screen region:
+
+```typescript
+const region = { x: 100, y: 100, width: 300, height: 200 };
+
+const screenshot = await sandbox.computerUse.screenshot.takeRegion(region);
+
+console.log(`Captured region: ${screenshot.region.width}x${screenshot.region.height}`);
+```
+
+<ParamField path="region" type="ScreenshotRegion" required>
+  Region to capture
+  
+  <Expandable title="properties">
+    <ParamField path="x" type="number" required>
+      X coordinate of top-left corner
+    </ParamField>
+    
+    <ParamField path="y" type="number" required>
+      Y coordinate of top-left corner
+    </ParamField>
+    
+    <ParamField path="width" type="number" required>
+      Width of region
+    </ParamField>
+    
+    <ParamField path="height" type="number" required>
+      Height of region
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Compressed Screenshots
+
+Take compressed screenshots for smaller file sizes:
+
+```typescript
+// Default compression
+const screenshot = await sandbox.computerUse.screenshot.takeCompressed();
+
+// High quality JPEG
+const jpeg = await sandbox.computerUse.screenshot.takeCompressed({
+  format: 'jpeg',
+  quality: 95,
+  showCursor: true
+});
+
+// Scaled down PNG
+const scaled = await sandbox.computerUse.screenshot.takeCompressed({
+  format: 'png',
+  scale: 0.5  // 50% size
+});
+
+// Compressed region
+const region = { x: 0, y: 0, width: 800, height: 600 };
+const compressed = await sandbox.computerUse.screenshot.takeCompressedRegion(
+  region,
+  {
+    format: 'webp',
+    quality: 80
+  }
+);
+
+console.log(`Compressed size: ${compressed.size_bytes} bytes`);
+```
+
+<ParamField path="options" type="ScreenshotOptions">
+  Compression and display options
+  
+  <Expandable title="properties">
+    <ParamField path="showCursor" type="boolean">
+      Show cursor in screenshot
+    </ParamField>
+    
+    <ParamField path="format" type="string">
+      Image format: 'jpeg', 'png', 'webp'
+    </ParamField>
+    
+    <ParamField path="quality" type="number">
+      Compression quality (0-100)
+    </ParamField>
+    
+    <ParamField path="scale" type="number">
+      Scale factor (e.g., 0.5 for 50% size)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Display Information
+
+### Get Display Info
+
+```typescript
+const info = await sandbox.computerUse.display.getInfo();
+
+console.log(`Primary display: ${info.primary_display.width}x${info.primary_display.height}`);
+console.log(`Total displays: ${info.total_displays}`);
+
+info.displays.forEach((display, index) => {
+  console.log(`Display ${index}: ${display.width}x${display.height} at (${display.x}, ${display.y})`);
+});
+```
+
+### List Open Windows
+
+```typescript
+const windows = await sandbox.computerUse.display.getWindows();
+
+console.log(`Found ${windows.count} open windows:`);
+windows.windows.forEach(window => {
+  console.log(`- ${window.title} (ID: ${window.id})`);
+});
+```
+
+## Screen Recording
+
+### Start Recording
+
+```typescript
+const recording = await sandbox.computerUse.recording.start('my-recording');
+
+console.log('Recording ID:', recording.id);
+console.log('File path:', recording.filePath);
+```
+
+<ParamField path="label" type="string">
+  Optional custom label for the recording
+</ParamField>
+
+### Stop Recording
+
+```typescript
+const result = await sandbox.computerUse.recording.stop(recording.id);
+
+console.log(`Recording stopped: ${result.durationSeconds} seconds`);
+console.log(`Saved to: ${result.filePath}`);
+```
+
+### List Recordings
+
+```typescript
+const recordings = await sandbox.computerUse.recording.list();
+
+console.log(`Found ${recordings.recordings.length} recordings`);
+
+recordings.recordings.forEach(rec => {
+  console.log(`- ${rec.fileName}: ${rec.status}`);
+  console.log(`  Duration: ${rec.durationSeconds}s`);
+  console.log(`  Size: ${rec.sizeBytes} bytes`);
+});
+```
+
+### Get Recording Details
+
+```typescript
+const recording = await sandbox.computerUse.recording.get(recordingId);
+
+console.log('Recording:', recording.fileName);
+console.log('Status:', recording.status);
+console.log('Duration:', recording.durationSeconds, 'seconds');
+```
+
+### Download Recording
+
+```typescript
+await sandbox.computerUse.recording.download(
+  recordingId,
+  'local-recording.mp4'
+);
+
+console.log('Recording downloaded');
+```
+
+<ParamField path="id" type="string" required>
+  ID of the recording to download
+</ParamField>
+
+<ParamField path="localPath" type="string" required>
+  Local path to save the recording file
+</ParamField>
+
+### Delete Recording
+
+```typescript
+await sandbox.computerUse.recording.delete(recordingId);
+console.log('Recording deleted');
+```
+
+## Process Management
+
+### Get Process Status
+
+```typescript
+const xvfbStatus = await sandbox.computerUse.getProcessStatus('xvfb');
+const noVncStatus = await sandbox.computerUse.getProcessStatus('novnc');
+
+console.log('Xvfb status:', xvfbStatus.status);
+console.log('NoVNC status:', noVncStatus.status);
+```
+
+### Restart Process
+
+```typescript
+const result = await sandbox.computerUse.restartProcess('xfce4');
+console.log('XFCE4 restarted:', result.message);
+```
+
+### Get Process Logs
+
+```typescript
+const logs = await sandbox.computerUse.getProcessLogs('novnc');
+console.log('NoVNC logs:', logs.logs);
+
+const errors = await sandbox.computerUse.getProcessErrors('x11vnc');
+console.log('X11VNC errors:', errors.errors);
+```
+
+## Complete Example
+
+```typescript
+import { Daytona } from '@daytonaio/sdk';
+
+const daytona = new Daytona();
+const sandbox = await daytona.create();
+
+try {
+  // Start desktop environment
+  console.log('Starting desktop...');
+  await sandbox.computerUse.start();
+  
+  // Wait for desktop to initialize
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
+  // Get display info
+  const displayInfo = await sandbox.computerUse.display.getInfo();
+  console.log(`Display: ${displayInfo.primary_display.width}x${displayInfo.primary_display.height}`);
+  
+  // Start recording
+  const recording = await sandbox.computerUse.recording.start('automation-demo');
+  console.log('Recording started:', recording.id);
+  
+  // Move mouse to center
+  const centerX = displayInfo.primary_display.width / 2;
+  const centerY = displayInfo.primary_display.height / 2;
+  await sandbox.computerUse.mouse.move(centerX, centerY);
+  
+  // Open terminal with keyboard
+  await sandbox.computerUse.keyboard.hotkey('ctrl+alt+t');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Type a command
+  await sandbox.computerUse.keyboard.type('echo "Hello from automation!"');
+  await sandbox.computerUse.keyboard.press('Return');
+  
+  // Wait a bit
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Take screenshot
+  const screenshot = await sandbox.computerUse.screenshot.takeFullScreen(true);
+  console.log(`Screenshot captured: ${screenshot.width}x${screenshot.height}`);
+  
+  // Stop recording
+  const result = await sandbox.computerUse.recording.stop(recording.id);
+  console.log(`Recording saved: ${result.durationSeconds}s`);
+  
+  // Download recording
+  await sandbox.computerUse.recording.download(
+    recording.id,
+    'automation-demo.mp4'
+  );
+  
+  console.log('Automation complete!');
+  
+} finally {
+  await daytona.delete(sandbox);
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Wait for desktop initialization">
+    After starting computer use, wait a few seconds for the desktop to fully initialize:
+    
+    ```typescript
+    await sandbox.computerUse.start();
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    ```
+  </Accordion>
+
+  <Accordion title="Add delays between actions">
+    Add small delays between UI interactions to allow applications to respond:
+    
+    ```typescript
+    await sandbox.computerUse.keyboard.type('command');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await sandbox.computerUse.keyboard.press('Return');
+    ```
+  </Accordion>
+
+  <Accordion title="Use compressed screenshots">
+    For screenshots that will be transmitted or stored, use compression:
+    
+    ```typescript
+    const screenshot = await sandbox.computerUse.screenshot.takeCompressed({
+      format: 'jpeg',
+      quality: 85
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Clean up recordings">
+    Delete recordings when no longer needed to save storage:
+    
+    ```typescript
+    await sandbox.computerUse.recording.delete(recordingId);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Process Execution" icon="terminal" href="/features/process-execution">
+    Execute commands in the desktop environment
+  </Card>
+  
+  <Card title="PTY Sessions" icon="window" href="/features/pty-sessions">
+    Interactive terminal sessions
+  </Card>
+</CardGroup>

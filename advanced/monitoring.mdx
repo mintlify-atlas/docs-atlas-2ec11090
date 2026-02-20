@@ -1,0 +1,387 @@
+---
+title: Monitoring & Observability
+description: Monitor Daytona sandboxes with OpenTelemetry, telemetry, and metrics
+---
+
+## Overview
+
+Daytona provides built-in observability features including OpenTelemetry (OTEL) integration, telemetry tracking, and metrics collection for monitoring sandbox operations and performance.
+
+## OpenTelemetry Integration
+
+Daytona SDK supports OpenTelemetry for distributed tracing of all sandbox operations.
+
+### Enable OTEL Tracing
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+// Enable OpenTelemetry tracing
+const daytona = new Daytona({
+  apiKey: 'your-api-key',
+  _experimental: {
+    otelEnabled: true
+  }
+})
+
+// All SDK operations will now be traced
+const sandbox = await daytona.create()
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+# Enable OpenTelemetry tracing
+daytona = Daytona(
+    api_key='your-api-key',
+    experimental={'otel_enabled': True}
+)
+
+# All SDK operations will now be traced
+sandbox = daytona.create()
+```
+</CodeGroup>
+
+### Environment Variable Configuration
+
+Enable OTEL using environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_EXPERIMENTAL_OTEL_ENABLED="true"
+
+# Optional OTEL configuration
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+export OTEL_SERVICE_NAME="my-daytona-app"
+```
+
+### Automatic Span Creation
+
+When OTEL is enabled, the SDK automatically creates spans for:
+- Sandbox creation and management
+- File operations
+- Process execution
+- Git operations
+- Network requests
+- Code execution
+
+### Using Async Disposal
+
+For Node.js applications, use async disposal to ensure traces are flushed:
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+// Use async disposal pattern
+await using daytona = new Daytona({
+  _experimental: { otelEnabled: true }
+})
+
+const sandbox = await daytona.create()
+await sandbox.process.executeCommand('echo "Hello"')
+
+// Traces are automatically flushed when scope exits
+```
+
+## OTEL Collector Configuration
+
+Daytona uses a custom OpenTelemetry Collector for processing telemetry data.
+
+### Collector Components
+
+The Daytona OTEL Collector includes:
+
+1. **OTLP Receiver**: Accepts traces, metrics, and logs via HTTP
+2. **Daytona Exporter**: Routes telemetry to organization-specific endpoints
+3. **ClickHouse Exporter**: Stores telemetry data for analysis
+
+### Collector Configuration
+
+```yaml
+# OpenTelemetry Collector configuration
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
+
+exporters:
+  daytona_exporter:
+    sandbox_auth_token_header: 'sandbox-auth-token'
+    cache_ttl: 5m
+    default_timeout: 30s
+    api_url: ${env:DAYTONA_API_URL}
+    api_key: ${env:DAYTONA_API_KEY}
+    
+  clickhouse:
+    endpoint: ${env:CLICKHOUSE_ENDPOINT}
+    database: otel
+    ttl: 72h
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [daytona_exporter, clickhouse]
+    metrics:
+      receivers: [otlp]
+      exporters: [daytona_exporter, clickhouse]
+    logs:
+      receivers: [otlp]
+      exporters: [daytona_exporter, clickhouse]
+```
+
+### Custom OTLP Endpoint
+
+Configure a custom OTLP endpoint:
+
+```bash
+# Point to your own OTEL Collector
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://your-collector:4318"
+export OTEL_EXPORTER_OTLP_HEADERS="x-api-key=your-key"
+```
+
+## Telemetry and Metrics
+
+### SDK Telemetry
+
+The SDK automatically tracks:
+
+| Metric | Description |
+|--------|-------------|
+| `sandbox.create.duration` | Time to create sandboxes |
+| `sandbox.start.duration` | Time to start sandboxes |
+| `sandbox.stop.duration` | Time to stop sandboxes |
+| `sandbox.delete.duration` | Time to delete sandboxes |
+| `process.execute.duration` | Process execution time |
+| `fs.operation.duration` | File system operation time |
+| `git.operation.duration` | Git operation time |
+| `http.request.duration` | HTTP request duration |
+| `http.response.status_code` | HTTP response codes |
+
+### Trace Attributes
+
+Spans include attributes such as:
+
+```typescript
+{
+  'service.name': 'daytona-typescript-sdk',
+  'service.version': '1.0.0',
+  'sandbox.id': 'sandbox-123',
+  'sandbox.state': 'started',
+  'sandbox.target': 'us-east',
+  'http.request.method': 'POST',
+  'http.response.status_code': 200,
+  'http.response.duration_ms': 150
+}
+```
+
+## Monitoring Sandbox State
+
+### Check Sandbox Status
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+const sandbox = await daytona.get('sandbox-id')
+
+console.log('Sandbox Information:')
+console.log(`  ID: ${sandbox.id}`)
+console.log(`  State: ${sandbox.state}`)
+console.log(`  Region: ${sandbox.target}`)
+console.log(`  Created: ${sandbox.createdAt}`)
+console.log(`  Updated: ${sandbox.updatedAt}`)
+console.log(`  CPU: ${sandbox.cpu} cores`)
+console.log(`  Memory: ${sandbox.memory} GiB`)
+console.log(`  Disk: ${sandbox.disk} GiB`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+sandbox = daytona.get('sandbox-id')
+
+print('Sandbox Information:')
+print(f'  ID: {sandbox.id}')
+print(f'  State: {sandbox.state}')
+print(f'  Region: {sandbox.target}')
+print(f'  Created: {sandbox.created_at}')
+print(f'  Updated: {sandbox.updated_at}')
+print(f'  CPU: {sandbox.cpu} cores')
+print(f'  Memory: {sandbox.memory} GiB')
+print(f'  Disk: {sandbox.disk} GiB')
+```
+</CodeGroup>
+
+### Monitor Backup State
+
+<CodeGroup>
+```typescript TypeScript
+await sandbox.refreshData()
+
+console.log('Backup Information:')
+console.log(`  Backup State: ${sandbox.backupState}`)
+console.log(`  Backup Created: ${sandbox.backupCreatedAt}`)
+```
+
+```python Python
+sandbox.refresh_data()
+
+print('Backup Information:')
+print(f'  Backup State: {sandbox.backup_state}')
+print(f'  Backup Created: {sandbox.backup_created_at}')
+```
+</CodeGroup>
+
+### Monitor Lifecycle Configuration
+
+<CodeGroup>
+```typescript TypeScript
+const sandbox = await daytona.get('sandbox-id')
+
+console.log('Lifecycle Configuration:')
+console.log(`  Auto-stop: ${sandbox.autoStopInterval} minutes`)
+console.log(`  Auto-archive: ${sandbox.autoArchiveInterval} minutes`)
+console.log(`  Auto-delete: ${sandbox.autoDeleteInterval} minutes`)
+```
+
+```python Python
+sandbox = daytona.get('sandbox-id')
+
+print('Lifecycle Configuration:')
+print(f'  Auto-stop: {sandbox.auto_stop_interval} minutes')
+print(f'  Auto-archive: {sandbox.auto_archive_interval} minutes')
+print(f'  Auto-delete: {sandbox.auto_delete_interval} minutes')
+```
+</CodeGroup>
+
+## Error Tracking
+
+### Monitor Error States
+
+<CodeGroup>
+```typescript TypeScript
+const sandbox = await daytona.get('sandbox-id')
+
+if (sandbox.state === 'error') {
+  console.error('Sandbox Error:')
+  console.error(`  Reason: ${sandbox.errorReason}`)
+  console.error(`  Recoverable: ${sandbox.recoverable}`)
+  
+  if (sandbox.recoverable) {
+    console.log('Attempting recovery...')
+    await sandbox.recover()
+  }
+}
+```
+
+```python Python
+sandbox = daytona.get('sandbox-id')
+
+if sandbox.state == 'error':
+    print('Sandbox Error:')
+    print(f'  Reason: {sandbox.error_reason}')
+    print(f'  Recoverable: {sandbox.recoverable}')
+    
+    if sandbox.recoverable:
+        print('Attempting recovery...')
+        sandbox.recover()
+```
+</CodeGroup>
+
+### Custom Error Handling
+
+```typescript
+import { Daytona, DaytonaError, DaytonaNotFoundError } from '@daytonaio/sdk'
+
+try {
+  const sandbox = await daytona.create({ image: 'invalid-image' })
+} catch (error) {
+  if (error instanceof DaytonaNotFoundError) {
+    console.error('Resource not found:', error.message)
+  } else if (error instanceof DaytonaError) {
+    console.error('Daytona error:', error.message)
+    console.error('Status code:', error.statusCode)
+    console.error('Headers:', error.headers)
+  } else {
+    console.error('Unexpected error:', error)
+  }
+}
+```
+
+## Monitoring Best Practices
+
+1. **Enable OTEL in production**: Get visibility into all SDK operations.
+
+2. **Set up dashboards**: Use tools like Grafana to visualize telemetry data.
+
+3. **Monitor resource usage**: Track CPU, memory, and disk utilization.
+
+4. **Track lifecycle events**: Monitor auto-stop, auto-archive, and auto-delete events.
+
+5. **Alert on errors**: Set up alerts for sandboxes in error state.
+
+6. **Use labels for filtering**: Add labels to sandboxes for easier monitoring and grouping.
+
+7. **Monitor costs**: Track sandbox usage across regions and teams.
+
+## Observability Stack
+
+### Recommended Tools
+
+| Tool | Purpose |
+|------|----------|
+| **Grafana** | Visualization and dashboards |
+| **Prometheus** | Metrics collection and storage |
+| **Jaeger** | Distributed tracing visualization |
+| **ClickHouse** | Long-term telemetry storage |
+| **Loki** | Log aggregation |
+
+### Example Dashboard Metrics
+
+```typescript
+// Track sandbox creation time
+const startTime = Date.now()
+const sandbox = await daytona.create()
+const creationTime = Date.now() - startTime
+console.log(`Sandbox created in ${creationTime}ms`)
+
+// Track resource allocation
+const totalCPU = result.items.reduce((sum, s) => sum + s.cpu, 0)
+const totalMemory = result.items.reduce((sum, s) => sum + s.memory, 0)
+console.log(`Total allocated: ${totalCPU} CPU, ${totalMemory} GiB RAM`)
+```
+
+## Health Checks
+
+The OTEL Collector provides health check endpoints:
+
+```bash
+# Check collector health
+curl http://localhost:13133/health/status
+
+# Get collector configuration
+curl http://localhost:13133/health/config
+```
+
+## Data Retention
+
+Telemetry data retention in ClickHouse:
+
+```yaml
+clickhouse:
+  ttl: 72h  # Keep data for 72 hours
+```
+
+Adjust based on your monitoring and compliance requirements.
+
+## Related
+
+- [Auto Lifecycle](/advanced/auto-lifecycle) - Monitor lifecycle events
+- [Resource Management](/advanced/resource-management) - Track resource usage
+- [Regions](/advanced/regions) - Monitor multi-region deployments

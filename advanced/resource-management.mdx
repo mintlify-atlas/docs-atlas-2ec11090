@@ -1,0 +1,351 @@
+---
+title: Resource Management
+description: Configure CPU, memory, disk, and GPU resources for Daytona sandboxes
+---
+
+## Overview
+
+Daytona allows you to allocate specific compute resources to each sandbox. Resources are defined when creating a sandbox and determine its computational capacity.
+
+## Resource Types
+
+### Available Resources
+
+| Resource | Type | Unit | Description |
+|----------|------|------|-------------|
+| `cpu` | `number` | Cores | Number of CPU cores allocated |
+| `memory` | `number` | GiB | RAM allocation in gibibytes |
+| `disk` | `number` | GiB | Disk space allocation in gibibytes |
+| `gpu` | `number` | Units | Number of GPU units allocated |
+
+## Setting Resources
+
+### Basic Configuration
+
+Resources are specified in the `resources` parameter when creating a sandbox:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+const sandbox = await daytona.create({
+  image: 'python:3.12',
+  resources: {
+    cpu: 4,      // 4 CPU cores
+    memory: 8,   // 8 GiB RAM
+    disk: 50     // 50 GiB disk space
+  }
+})
+
+console.log(`CPU: ${sandbox.cpu} cores`)
+console.log(`Memory: ${sandbox.memory} GiB`)
+console.log(`Disk: ${sandbox.disk} GiB`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+
+sandbox = daytona.create(
+    image='python:3.12',
+    resources={
+        'cpu': 4,      # 4 CPU cores
+        'memory': 8,   # 8 GiB RAM
+        'disk': 50     # 50 GiB disk space
+    }
+)
+
+print(f'CPU: {sandbox.cpu} cores')
+print(f'Memory: {sandbox.memory} GiB')
+print(f'Disk: {sandbox.disk} GiB')
+```
+</CodeGroup>
+
+### GPU Allocation
+
+For GPU-accelerated workloads:
+
+<CodeGroup>
+```typescript TypeScript
+const sandbox = await daytona.create({
+  image: 'tensorflow/tensorflow:latest-gpu',
+  resources: {
+    cpu: 8,
+    memory: 32,
+    disk: 100,
+    gpu: 1  // 1 GPU unit
+  }
+})
+
+console.log(`GPU: ${sandbox.gpu} units`)
+```
+
+```python Python
+sandbox = daytona.create(
+    image='tensorflow/tensorflow:latest-gpu',
+    resources={
+        'cpu': 8,
+        'memory': 32,
+        'disk': 100,
+        'gpu': 1  # 1 GPU unit
+    }
+)
+
+print(f'GPU: {sandbox.gpu} units')
+```
+</CodeGroup>
+
+## Default Resources
+
+When resources are not specified:
+- Sandboxes use default resource allocations based on your organization's configuration
+- Resources can vary depending on the region and availability
+
+<CodeGroup>
+```typescript TypeScript
+// Uses default resources
+const sandbox = await daytona.create({
+  snapshot: 'default-python'
+})
+
+console.log(`Default CPU: ${sandbox.cpu} cores`)
+console.log(`Default Memory: ${sandbox.memory} GiB`)
+```
+
+```python Python
+# Uses default resources
+sandbox = daytona.create(snapshot='default-python')
+
+print(f'Default CPU: {sandbox.cpu} cores')
+print(f'Default Memory: {sandbox.memory} GiB')
+```
+</CodeGroup>
+
+## Resource Planning
+
+### Use Case Examples
+
+#### Lightweight Development
+
+```typescript
+const devSandbox = await daytona.create({
+  resources: {
+    cpu: 1,
+    memory: 2,
+    disk: 10
+  }
+})
+```
+
+#### Standard Application Testing
+
+```typescript
+const testSandbox = await daytona.create({
+  resources: {
+    cpu: 2,
+    memory: 4,
+    disk: 20
+  }
+})
+```
+
+#### Data Science Workloads
+
+```typescript
+const dataScienceSandbox = await daytona.create({
+  image: Image.debianSlim('3.12')
+    .pipInstall(['pandas', 'numpy', 'scikit-learn']),
+  resources: {
+    cpu: 8,
+    memory: 32,
+    disk: 100
+  }
+})
+```
+
+#### Machine Learning Training
+
+```typescript
+const mlSandbox = await daytona.create({
+  image: 'tensorflow/tensorflow:latest-gpu',
+  resources: {
+    cpu: 16,
+    memory: 64,
+    disk: 200,
+    gpu: 2
+  }
+})
+```
+
+## Resizing Sandboxes
+
+<Tip>
+Sandbox resizing allows you to adjust resources without recreating the sandbox.
+</Tip>
+
+<CodeGroup>
+```typescript TypeScript
+// Resize an existing sandbox
+await sandbox.resize({
+  cpu: 8,
+  memory: 16,
+  disk: 100
+})
+
+await sandbox.refreshData()
+console.log(`New CPU: ${sandbox.cpu} cores`)
+console.log(`New Memory: ${sandbox.memory} GiB`)
+```
+
+```python Python
+# Resize an existing sandbox
+sandbox.resize(
+    cpu=8,
+    memory=16,
+    disk=100
+)
+
+sandbox.refresh_data()
+print(f'New CPU: {sandbox.cpu} cores')
+print(f'New Memory: {sandbox.memory} GiB')
+```
+</CodeGroup>
+
+## Monitoring Resources
+
+### Check Current Allocation
+
+<CodeGroup>
+```typescript TypeScript
+const sandbox = await daytona.get('sandbox-id')
+
+console.log('Resource Allocation:')
+console.log(`  CPU: ${sandbox.cpu} cores`)
+console.log(`  Memory: ${sandbox.memory} GiB`)
+console.log(`  Disk: ${sandbox.disk} GiB`)
+console.log(`  GPU: ${sandbox.gpu || 0} units`)
+```
+
+```python Python
+sandbox = daytona.get('sandbox-id')
+
+print('Resource Allocation:')
+print(f'  CPU: {sandbox.cpu} cores')
+print(f'  Memory: {sandbox.memory} GiB')
+print(f'  Disk: {sandbox.disk} GiB')
+print(f'  GPU: {sandbox.gpu or 0} units')
+```
+</CodeGroup>
+
+### List Sandboxes with Resources
+
+<CodeGroup>
+```typescript TypeScript
+const result = await daytona.list()
+
+for (const sandbox of result.items) {
+  console.log(`${sandbox.id}:`)
+  console.log(`  CPU: ${sandbox.cpu}, Memory: ${sandbox.memory}, Disk: ${sandbox.disk}`)
+}
+```
+
+```python Python
+result = daytona.list()
+
+for sandbox in result.items:
+    print(f'{sandbox.id}:')
+    print(f'  CPU: {sandbox.cpu}, Memory: {sandbox.memory}, Disk: {sandbox.disk}')
+```
+</CodeGroup>
+
+## Snapshots with Resources
+
+When creating snapshots with specific resource requirements:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona, Image } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+const image = Image.debianSlim('3.12')
+  .pipInstall(['pandas', 'numpy', 'matplotlib'])
+
+await daytona.snapshot.create(
+  {
+    name: 'data-science-env',
+    image,
+    resources: {
+      cpu: 4,
+      memory: 16,
+      disk: 50
+    }
+  },
+  {
+    onLogs: console.log
+  }
+)
+
+// Create sandboxes from snapshot (inherits resource allocation)
+const sandbox = await daytona.create({
+  snapshot: 'data-science-env'
+})
+```
+
+```python Python
+from daytona_sdk import Daytona, Image
+
+daytona = Daytona()
+
+image = (Image.debian_slim('3.12')
+    .pip_install(['pandas', 'numpy', 'matplotlib']))
+
+daytona.snapshot.create(
+    name='data-science-env',
+    image=image,
+    resources={
+        'cpu': 4,
+        'memory': 16,
+        'disk': 50
+    },
+    on_logs=print
+)
+
+# Create sandboxes from snapshot (inherits resource allocation)
+sandbox = daytona.create(snapshot='data-science-env')
+```
+</CodeGroup>
+
+## Best Practices
+
+1. **Start small**: Begin with minimal resources and scale up based on actual usage.
+
+2. **Match workload to resources**:
+   - CPU-intensive: Increase CPU cores
+   - Memory-intensive: Increase RAM
+   - Data processing: Increase disk space
+   - ML/AI workloads: Add GPU resources
+
+3. **Use cost-effective configurations**: Right-size resources to avoid over-provisioning.
+
+4. **Monitor and adjust**: Use sandbox resizing to optimize resources over time.
+
+5. **Snapshot resource templates**: Create snapshots with different resource profiles for common use cases.
+
+## Resource Limits
+
+Resource availability may be subject to:
+- Organization quotas
+- Region availability
+- Plan limitations
+
+Contact your organization administrator or Daytona support for quota increases.
+
+## Related
+
+- [Custom Images](/advanced/custom-images) - Configure custom Docker images
+- [Auto Lifecycle](/advanced/auto-lifecycle) - Automatic resource cleanup
+- [Regions](/advanced/regions) - Region-specific resource availability

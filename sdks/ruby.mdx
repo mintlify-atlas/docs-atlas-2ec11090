@@ -1,0 +1,725 @@
+---
+title: Ruby SDK
+description: Complete guide to the Daytona Ruby SDK for managing sandboxes and executing code
+---
+
+The Daytona Ruby SDK provides an idiomatic Ruby interface for interacting with Daytona Sandboxes, with clean syntax and integration with the Ruby ecosystem.
+
+## Installation
+
+<CodeGroup>
+```bash gem
+gem install daytona
+```
+
+```ruby Gemfile
+gem 'daytona'
+```
+</CodeGroup>
+
+If using Bundler:
+
+```bash
+bundle install
+```
+
+## Quick Start
+
+```ruby
+require 'daytona'
+
+# Initialize using environment variables
+daytona = Daytona::Daytona.new
+
+# Create a sandbox
+sandbox = daytona.create
+
+# Execute code
+response = sandbox.process.code_run(code: 'puts "Hello, World!"')
+puts response.result
+
+# Clean up
+daytona.delete(sandbox)
+```
+
+## Configuration
+
+### Using Environment Variables
+
+Set the following environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_API_URL="https://app.daytona.io/api"  # Optional
+export DAYTONA_TARGET="us"  # Optional
+```
+
+Then initialize the client:
+
+```ruby
+require 'daytona'
+
+daytona = Daytona::Daytona.new
+```
+
+### Using Configuration Object
+
+```ruby
+require 'daytona'
+
+config = Daytona::Config.new(
+  api_key: 'your-api-key',
+  api_url: 'https://app.daytona.io/api',
+  target: 'us'
+)
+
+daytona = Daytona::Daytona.new(config)
+```
+
+## Sandbox Management
+
+### Creating Sandboxes
+
+#### Basic Sandbox Creation
+
+```ruby
+require 'daytona'
+
+daytona = Daytona::Daytona.new
+sandbox = daytona.create
+
+puts "Created sandbox: #{sandbox.id}"
+puts "State: #{sandbox.state}"
+```
+
+#### Customized Sandbox Creation
+
+```ruby
+params = {
+  language: 'ruby',
+  env_vars: {
+    'RUBY_ENV' => 'production',
+    'DEBUG' => 'false'
+  },
+  labels: {
+    'project' => 'my-app',
+    'environment' => 'production'
+  },
+  auto_stop_interval: 60,    # Auto-stop after 1 hour
+  auto_archive_interval: 60, # Auto-archive after 1 hour
+  auto_delete_interval: 120  # Auto-delete after 2 hours
+}
+
+sandbox = daytona.create(params)
+puts "Created sandbox: #{sandbox.id}"
+```
+
+### Listing Sandboxes
+
+```ruby
+# List all sandboxes
+result = daytona.list
+puts "Total sandboxes: #{result.total}"
+
+result.items.each do |sandbox|
+  puts "ID: #{sandbox.id}, State: #{sandbox.state}"
+end
+
+# List with pagination
+result = daytona.list(page: 1, limit: 10)
+```
+
+### Getting a Sandbox
+
+```ruby
+# Get by ID or name
+sandbox = daytona.get('sandbox-id-or-name')
+puts "Sandbox: #{sandbox.name} (State: #{sandbox.state})"
+```
+
+### Sandbox Lifecycle
+
+```ruby
+# Stop a sandbox
+daytona.stop(sandbox)
+puts "Sandbox state: #{sandbox.state}"  # 'stopped'
+
+# Start a sandbox
+daytona.start(sandbox)
+puts "Sandbox state: #{sandbox.state}"  # 'started'
+
+# Delete a sandbox
+daytona.delete(sandbox)
+```
+
+### Setting Labels
+
+```ruby
+sandbox.labels = {
+  environment: 'production',
+  project: 'my-app',
+  team: 'backend'
+}
+
+puts "Labels: #{sandbox.labels}"
+```
+
+## Code Execution
+
+### Running Ruby Code
+
+```ruby
+# Simple code execution
+response = sandbox.process.code_run(code: 'puts "Hello, World!"')
+puts response.result
+
+# Multi-line code
+code = <<~RUBY
+  x = 10
+  y = 20
+  puts "Sum: #{x + y}"
+RUBY
+
+response = sandbox.process.code_run(code: code)
+puts response.result  # Output: Sum: 30
+```
+
+### Executing Shell Commands
+
+```ruby
+# Execute a command
+response = sandbox.process.exec(command: 'echo "Hello, World!"')
+if response.exit_code == 0
+  puts response.result
+else
+  puts "Error: #{response.result}"
+end
+
+# Execute with working directory and timeout
+response = sandbox.process.exec(
+  command: 'ls -la',
+  cwd: '/home/daytona',
+  timeout: 10
+)
+puts response.result
+```
+
+## File Operations
+
+### Uploading Files
+
+```ruby
+# Upload a single file from string
+content = 'Hello, World!'
+sandbox.fs.upload_file(content, '/tmp/hello.txt')
+
+# Upload from local file
+file_content = File.read('local-file.txt')
+sandbox.fs.upload_file(file_content, '/tmp/remote-file.txt')
+
+# Upload multiple files
+files = [
+  {
+    source: 'local-file1.txt',
+    destination: '/tmp/file1.txt'
+  },
+  {
+    source: 'Hello from Ruby',
+    destination: '/tmp/file2.txt'
+  }
+]
+
+sandbox.fs.upload_files(files)
+```
+
+### Downloading Files
+
+```ruby
+# Download a single file
+content = sandbox.fs.download_file('/tmp/hello.txt')
+puts content
+
+# Download to local file
+content = sandbox.fs.download_file('/tmp/data.txt')
+File.write('local-data.txt', content)
+
+# Download multiple files
+requests = [
+  {
+    source: '/tmp/file1.txt',
+    destination: 'local-file1.txt'
+  },
+  {
+    source: '/tmp/file2.txt'  # To memory
+  }
+]
+
+results = sandbox.fs.download_files(requests)
+results.each do |result|
+  if result.error
+    puts "Error: #{result.error}"
+  elsif result.result.is_a?(String)
+    puts "Downloaded to: #{result.result}"
+  else
+    puts "Downloaded to memory: #{result.result.length} bytes"
+  end
+end
+```
+
+### File System Operations
+
+```ruby
+# List files in a directory
+files = sandbox.fs.list_files('/tmp')
+files.each do |file|
+  puts "#{file.name}: #{file.size} bytes"
+end
+
+# Create a folder
+sandbox.fs.create_folder('/tmp/new-folder', mode: '755')
+
+# Search for files
+matches = sandbox.fs.search_files('/tmp', '*.txt')
+puts "Found #{matches.files.length} files"
+matches.files.each do |file|
+  puts file
+end
+
+# Replace content in files
+sandbox.fs.replace_in_files(
+  ['/tmp/config.json'],
+  '"debug": true',
+  '"debug": false'
+)
+```
+
+## Git Operations
+
+### Cloning Repositories
+
+```ruby
+# Clone a public repository
+sandbox.git.clone(
+  'https://github.com/daytonaio/daytona.git',
+  '/tmp/daytona'
+)
+
+# Clone with authentication
+sandbox.git.clone(
+  'https://github.com/private/repo.git',
+  '/tmp/repo',
+  username: 'user',
+  password: 'token'
+)
+
+# Clone a specific branch
+sandbox.git.clone(
+  'https://github.com/example/repo.git',
+  '/tmp/repo',
+  branch: 'develop'
+)
+```
+
+### Git Status and Branches
+
+```ruby
+# Get repository status
+status = sandbox.git.status('/tmp/repo')
+puts "Current branch: #{status.current_branch}"
+puts "Files changed: #{status.file_status.length}"
+
+# List branches
+branches = sandbox.git.branches('/tmp/repo')
+branches.each do |branch|
+  puts "Branch: #{branch}"
+end
+```
+
+### Committing Changes
+
+```ruby
+# Add files to staging
+sandbox.git.add('/tmp/repo', ['file1.txt', 'file2.txt'])
+
+# Commit changes
+sandbox.git.commit(
+  '/tmp/repo',
+  'Add new features',
+  'Your Name',
+  'your.email@example.com'
+)
+
+# Push changes
+sandbox.git.push(
+  '/tmp/repo',
+  username: 'user',
+  password: 'token'
+)
+```
+
+## Language Server Protocol
+
+### Starting an LSP Server
+
+```ruby
+# Create and start a Ruby LSP server
+lsp = sandbox.create_lsp_server('ruby', '/workspace/project')
+lsp.start
+
+# Notify LSP about opened file
+lsp.did_open('/workspace/project/lib/main.rb')
+```
+
+### Code Intelligence
+
+```ruby
+# Get document symbols
+symbols = lsp.document_symbols('/workspace/project/lib/main.rb')
+symbols.each do |symbol|
+  puts "#{symbol.name} (#{symbol.kind})"
+end
+
+# Get completions
+completions = lsp.completions(
+  '/workspace/project/lib/main.rb',
+  { line: 10, character: 15 }
+)
+completions.each do |item|
+  puts "#{item.label}: #{item.detail}"
+end
+
+# Go to definition
+definition = lsp.definition(
+  '/workspace/project/lib/main.rb',
+  { line: 5, character: 10 }
+)
+puts "Definition at: #{definition}"
+```
+
+### Stopping LSP Server
+
+```ruby
+# Stop the LSP server
+lsp.stop
+```
+
+## Error Handling
+
+```ruby
+require 'daytona'
+
+begin
+  daytona = Daytona::Daytona.new
+  sandbox = daytona.create
+
+  # Execute code that might fail
+  response = sandbox.process.exec(command: 'invalid-command')
+  if response.exit_code != 0
+    puts "Command failed: #{response.result}"
+  end
+
+rescue Daytona::NotFoundError => e
+  puts "Resource not found: #{e.message}"
+rescue Daytona::RateLimitError => e
+  puts "Rate limit exceeded: #{e.message}"
+rescue Daytona::Error => e
+  puts "Daytona error: #{e.message}"
+ensure
+  # Always cleanup
+  daytona.delete(sandbox) if sandbox
+end
+```
+
+## Complete Example
+
+```ruby
+require 'daytona'
+require 'json'
+
+def main
+  # Initialize client
+  daytona = Daytona::Daytona.new
+
+  # Create sandbox with custom configuration
+  params = {
+    language: 'ruby',
+    env_vars: { 'ENV' => 'production' },
+    labels: { 'project' => 'data-analysis' }
+  }
+
+  sandbox = daytona.create(params)
+  puts "Created sandbox: #{sandbox.id}"
+
+  begin
+    # Upload a Ruby script
+    script = <<~RUBY
+      require 'json'
+
+      data = { name: 'Alice', age: 25 }
+      puts JSON.generate(data)
+    RUBY
+
+    sandbox.fs.upload_file(script, '/tmp/analyze.rb')
+
+    # Run the script
+    result = sandbox.process.exec(command: 'ruby /tmp/analyze.rb')
+
+    if result.exit_code != 0
+      puts "Script failed: #{result.result}"
+      return
+    end
+
+    puts "Analysis result: #{result.result}"
+
+  ensure
+    # Cleanup
+    daytona.delete(sandbox)
+    puts 'Sandbox deleted'
+  end
+end
+
+main if __FILE__ == $PROGRAM_NAME
+```
+
+## Working with Rails
+
+```ruby
+# In a Rails controller
+class SandboxController < ApplicationController
+  def execute_code
+    daytona = Daytona::Daytona.new
+    sandbox = daytona.create(language: 'ruby')
+
+    begin
+      code = params[:code]
+      response = sandbox.process.code_run(code: code)
+
+      render json: {
+        success: response.exit_code == 0,
+        result: response.result
+      }
+    ensure
+      daytona.delete(sandbox)
+    end
+  end
+end
+```
+
+## API Reference
+
+### Daytona Class
+
+#### Methods
+
+- `create(params = {})` - Create a new sandbox
+- `get(sandbox_id_or_name)` - Get a sandbox by ID or name
+- `list(options = {})` - List sandboxes with pagination
+- `delete(sandbox)` - Delete a sandbox
+- `start(sandbox)` - Start a stopped sandbox
+- `stop(sandbox)` - Stop a running sandbox
+
+### Sandbox Class
+
+#### Properties
+
+- `fs` - FileSystem operations interface
+- `git` - Git operations interface
+- `process` - Process execution interface
+- `id` - Sandbox ID
+- `state` - Current state
+- `labels` - Custom labels (readable and writable)
+- `env` - Environment variables
+
+#### Methods
+
+- `get_preview_link(port)` - Get port preview URL
+
+### Process Class
+
+#### Methods
+
+- `exec(command:, cwd: nil, timeout: nil)` - Execute a shell command
+- `code_run(code:, params: nil)` - Execute code directly
+
+### FileSystem Class
+
+#### Methods
+
+- `upload_file(content, path)` - Upload a file
+- `upload_files(files)` - Upload multiple files
+- `download_file(path)` - Download a file
+- `download_files(requests)` - Download multiple files
+- `list_files(path)` - List files in a directory
+- `create_folder(path, mode: '755')` - Create a folder
+- `search_files(root, pattern)` - Search for files
+- `replace_in_files(files, old_str, new_str)` - Replace content in files
+
+### Git Class
+
+#### Methods
+
+- `clone(url, path, options = {})` - Clone a repository
+  - Options: `:branch`, `:username`, `:password`
+- `status(path)` - Get repository status
+- `branches(path)` - List branches
+- `add(path, files)` - Add files to staging
+- `commit(path, message, author, email)` - Commit changes
+- `push(path, options = {})` - Push changes
+  - Options: `:username`, `:password`
+
+## Best Practices
+
+### Always Use Begin-Ensure for Cleanup
+
+```ruby
+def process_data
+  daytona = Daytona::Daytona.new
+  sandbox = daytona.create
+
+  begin
+    # Do work with sandbox
+    result = sandbox.process.code_run(code: 'puts "Hello"')
+    result
+  ensure
+    # Always cleanup
+    daytona.delete(sandbox)
+  end
+end
+```
+
+### Check Exit Codes
+
+```ruby
+response = sandbox.process.exec(command: 'some-command')
+if response.exit_code != 0
+  puts "Command failed: #{response.result}"
+  # Handle error
+else
+  puts "Success: #{response.result}"
+end
+```
+
+### Use Symbols for Hash Keys
+
+```ruby
+# Preferred
+sandbox = daytona.create(
+  language: 'ruby',
+  env_vars: { 'ENV' => 'production' }
+)
+
+# Also works, but less idiomatic
+sandbox = daytona.create(
+  'language' => 'ruby',
+  'env_vars' => { 'ENV' => 'production' }
+)
+```
+
+### Use Heredocs for Multi-line Code
+
+```ruby
+code = <<~RUBY
+  require 'json'
+  
+  data = { name: 'Alice', age: 25 }
+  puts JSON.generate(data)
+RUBY
+
+response = sandbox.process.code_run(code: code)
+```
+
+## Integration Examples
+
+### Sinatra Application
+
+```ruby
+require 'sinatra'
+require 'daytona'
+require 'json'
+
+post '/execute' do
+  content_type :json
+  
+  daytona = Daytona::Daytona.new
+  sandbox = daytona.create(language: 'ruby')
+
+  begin
+    code = request.body.read
+    response = sandbox.process.code_run(code: code)
+
+    {
+      success: response.exit_code == 0,
+      result: response.result
+    }.to_json
+  ensure
+    daytona.delete(sandbox)
+  end
+end
+```
+
+### Background Job (Sidekiq)
+
+```ruby
+class CodeExecutionJob
+  include Sidekiq::Worker
+
+  def perform(code, user_id)
+    daytona = Daytona::Daytona.new
+    sandbox = daytona.create(language: 'ruby')
+
+    begin
+      response = sandbox.process.code_run(code: code)
+      
+      # Save results to database
+      Execution.create!(
+        user_id: user_id,
+        code: code,
+        result: response.result,
+        exit_code: response.exit_code
+      )
+    ensure
+      daytona.delete(sandbox)
+    end
+  end
+end
+```
+
+### Rake Task
+
+```ruby
+namespace :sandbox do
+  desc 'Clean up old sandboxes'
+  task cleanup: :environment do
+    daytona = Daytona::Daytona.new
+    
+    result = daytona.list
+    puts "Found #{result.total} sandboxes"
+
+    result.items.each do |sandbox|
+      # Delete sandboxes older than 1 day
+      created_at = Time.parse(sandbox.created_at)
+      if Time.now - created_at > 86400
+        puts "Deleting old sandbox: #{sandbox.id}"
+        daytona.delete(sandbox)
+      end
+    end
+  end
+end
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="SDK Overview" icon="book" href="/sdks/overview">
+    Compare all available SDKs
+  </Card>
+  <Card title="API Reference" icon="code" href="/tools/api">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="flask" href="https://github.com/daytonaio/daytona/tree/main/examples/ruby">
+    Browse Ruby examples on GitHub
+  </Card>
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Learn about the Python SDK
+  </Card>
+</CardGroup>

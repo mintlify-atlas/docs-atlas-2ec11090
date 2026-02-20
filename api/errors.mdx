@@ -1,0 +1,468 @@
+---
+title: 'Error Handling'
+description: 'Understanding API error codes, error responses, and troubleshooting common issues'
+---
+
+# Error Handling
+
+The Daytona API uses standard HTTP status codes to indicate success or failure of requests. All error responses include a JSON body with detailed error information.
+
+## Error Response Format
+
+Error responses follow a consistent structure:
+
+```json
+{
+  "statusCode": 400,
+  "message": "Bad Request",
+  "error": "Validation failed: snapshot is required"
+}
+```
+
+<ResponseField name="statusCode" type="number" required>
+  HTTP status code (4xx for client errors, 5xx for server errors)
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable error summary
+</ResponseField>
+
+<ResponseField name="error" type="string" required>
+  Detailed error description with context
+</ResponseField>
+
+## HTTP Status Codes
+
+### Success Codes (2xx)
+
+<ResponseField name="200 OK" type="success">
+  Request succeeded. Response body contains requested data.
+</ResponseField>
+
+<ResponseField name="201 Created" type="success">
+  Resource created successfully. Response body contains the new resource.
+</ResponseField>
+
+<ResponseField name="204 No Content" type="success">
+  Request succeeded. No response body (common for DELETE operations).
+</ResponseField>
+
+### Client Error Codes (4xx)
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid request format, missing required fields, or validation errors.
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing, invalid, or expired authentication credentials.
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Authenticated but lacks permission to access the resource.
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  Requested resource does not exist.
+</ResponseField>
+
+<ResponseField name="409 Conflict" type="error">
+  Request conflicts with current state (e.g., duplicate resource).
+</ResponseField>
+
+<ResponseField name="429 Too Many Requests" type="error">
+  Rate limit exceeded. See [Rate Limits](/api/rate-limits).
+</ResponseField>
+
+### Server Error Codes (5xx)
+
+<ResponseField name="500 Internal Server Error" type="error">
+  Unexpected server error. Contact support if persistent.
+</ResponseField>
+
+<ResponseField name="502 Bad Gateway" type="error">
+  Upstream service unavailable. Retry with exponential backoff.
+</ResponseField>
+
+<ResponseField name="503 Service Unavailable" type="error">
+  Service temporarily unavailable (maintenance or overload).
+</ResponseField>
+
+## Common Error Scenarios
+
+### Authentication Errors
+
+#### Missing API Key
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "error": "No authorization header provided"
+}
+```
+
+**Solution:** Include the Authorization header:
+```bash
+-H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Invalid API Key
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "error": "Invalid or expired API key"
+}
+```
+
+**Solutions:**
+- Verify your API key is correct
+- Check if the key has expired
+- Create a new API key if needed
+
+#### Insufficient Permissions
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden",
+  "error": "API key lacks required permission: write:sandboxes"
+}
+```
+
+**Solution:** Create an API key with appropriate permissions:
+```bash
+daytona api-key create "My Key" --permissions write:sandboxes
+```
+
+### Validation Errors
+
+#### Missing Required Field
+
+```json
+{
+  "statusCode": 400,
+  "message": "Bad Request",
+  "error": "Validation failed: snapshot is required"
+}
+```
+
+**Solution:** Include all required fields in the request:
+```json
+{
+  "snapshot": "ubuntu:22.04",
+  "alias": "my-sandbox"
+}
+```
+
+#### Invalid Field Value
+
+```json
+{
+  "statusCode": 400,
+  "message": "Bad Request",
+  "error": "Invalid value for cpu: must be between 1 and 32"
+}
+```
+
+**Solution:** Provide valid values within acceptable ranges.
+
+#### Invalid JSON Format
+
+```json
+{
+  "statusCode": 400,
+  "message": "Bad Request",
+  "error": "Invalid JSON: Unexpected token at position 45"
+}
+```
+
+**Solution:** Ensure request body is valid JSON:
+```bash
+# Use jq or similar to validate JSON
+echo '{"snapshot": "ubuntu:22.04"}' | jq .
+```
+
+### Resource Errors
+
+#### Resource Not Found
+
+```json
+{
+  "statusCode": 404,
+  "message": "Not Found",
+  "error": "Sandbox not found: sandbox_abc123"
+}
+```
+
+**Solutions:**
+- Verify the resource ID is correct
+- Check if the resource was deleted
+- Ensure you have access to the resource
+
+#### Resource Conflict
+
+```json
+{
+  "statusCode": 409,
+  "message": "Conflict",
+  "error": "A sandbox with alias 'my-sandbox' already exists"
+}
+```
+
+**Solution:** Use a unique alias or update the existing resource.
+
+### Rate Limit Errors
+
+```json
+{
+  "statusCode": 429,
+  "message": "Too Many Requests",
+  "error": "Rate limit exceeded. Please retry after 45 seconds.",
+  "retryAfter": 45
+}
+```
+
+**Solutions:**
+- Wait for the time specified in `retryAfter`
+- Implement exponential backoff
+- See [Rate Limits](/api/rate-limits) for best practices
+
+### Organization Context Errors
+
+#### Missing Organization ID
+
+```json
+{
+  "statusCode": 400,
+  "message": "Bad Request",
+  "error": "X-Daytona-Organization-ID header required for JWT tokens"
+}
+```
+
+**Solution:** Include organization header for JWT authentication:
+```bash
+-H "X-Daytona-Organization-ID: org_abc123"
+```
+
+### Quota Errors
+
+#### Organization Quota Exceeded
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden",
+  "error": "Organization quota exceeded: maximum 10 active sandboxes allowed"
+}
+```
+
+**Solutions:**
+- Delete unused sandboxes
+- Stop sandboxes not in use
+- Upgrade your organization plan
+- Contact support for quota increase
+
+#### Region Quota Exceeded
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden",
+  "error": "Region quota exceeded for us-east: CPU limit reached"
+}
+```
+
+**Solutions:**
+- Use a different region
+- Reduce resource allocation
+- Contact support for regional quota adjustment
+
+## Error Handling Best Practices
+
+### Implement Retry Logic
+
+```python
+import requests
+import time
+
+def make_request_with_retry(url, headers, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, headers=headers)
+            
+            # Success
+            if response.status_code < 400:
+                return response.json()
+            
+            # Client error (don't retry)
+            if 400 <= response.status_code < 500:
+                if response.status_code == 429:  # Rate limit
+                    retry_after = int(response.headers.get('Retry-After', 60))
+                    time.sleep(retry_after)
+                    continue
+                else:
+                    raise Exception(f"Client error: {response.json()}")
+            
+            # Server error (retry with backoff)
+            if response.status_code >= 500:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise Exception(f"Server error: {response.json()}")
+                    
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            else:
+                raise e
+    
+    raise Exception("Max retries exceeded")
+```
+
+### Validate Before Sending
+
+```typescript
+function validateSandboxRequest(data: any): string[] {
+  const errors: string[] = [];
+  
+  if (!data.snapshot) {
+    errors.push('snapshot is required');
+  }
+  
+  if (data.cpu && (data.cpu < 1 || data.cpu > 32)) {
+    errors.push('cpu must be between 1 and 32');
+  }
+  
+  if (data.memoryGiB && (data.memoryGiB < 1 || data.memoryGiB > 128)) {
+    errors.push('memoryGiB must be between 1 and 128');
+  }
+  
+  return errors;
+}
+
+// Use before making request
+const errors = validateSandboxRequest(requestData);
+if (errors.length > 0) {
+  console.error('Validation errors:', errors);
+  return;
+}
+```
+
+### Log Error Details
+
+```go
+import (
+    "fmt"
+    "log"
+)
+
+func handleAPIError(err error, response *http.Response) {
+    if response.StatusCode >= 400 {
+        var errorBody map[string]interface{}
+        json.NewDecoder(response.Body).Decode(&errorBody)
+        
+        log.Printf("API Error [%d]: %v", 
+            response.StatusCode, 
+            errorBody["error"])
+        
+        // Log additional context
+        log.Printf("Request ID: %s", 
+            response.Header.Get("X-Request-ID"))
+        log.Printf("Timestamp: %s", 
+            time.Now().Format(time.RFC3339))
+    }
+}
+```
+
+### Graceful Degradation
+
+```python
+def get_sandboxes_with_fallback(api_client):
+    try:
+        # Try to get sandboxes
+        return api_client.sandboxes.list()
+    except RateLimitError:
+        # Rate limited, return cached data
+        return get_cached_sandboxes()
+    except APIError as e:
+        if e.status_code >= 500:
+            # Server error, use fallback
+            logger.error(f"API unavailable: {e}")
+            return get_cached_sandboxes()
+        else:
+            # Client error, propagate
+            raise
+```
+
+## Debugging Tips
+
+<AccordionGroup>
+  <Accordion title="Enable Verbose Logging">
+    Use verbose mode to see full request/response details:
+    
+    ```bash
+    curl -v -X GET https://api.daytona.io/sandbox \
+      -H "Authorization: Bearer YOUR_API_KEY"
+    ```
+  </Accordion>
+
+  <Accordion title="Check Request ID">
+    Every response includes a request ID for troubleshooting:
+    
+    ```bash
+    X-Request-ID: req_abc123xyz
+    ```
+    
+    Include this when contacting support.
+  </Accordion>
+
+  <Accordion title="Validate with OpenAPI Spec">
+    Use tools like Swagger UI or Postman to validate requests against the OpenAPI specification.
+  </Accordion>
+
+  <Accordion title="Test with curl First">
+    Before implementing in code, test with curl to isolate issues:
+    
+    ```bash
+    curl -X POST https://api.daytona.io/sandbox \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"snapshot": "ubuntu:22.04"}'
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+If you encounter persistent errors:
+
+1. **Check status page** - Verify there are no ongoing incidents
+2. **Review documentation** - Ensure you're using the API correctly
+3. **Search community** - Check if others have encountered similar issues
+4. **Contact support** - Include request ID, error message, and reproduction steps
+
+<Info>
+  Include the `X-Request-ID` header value when reporting errors to support for faster resolution.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Fix authentication errors
+  </Card>
+  <Card title="Rate Limits" icon="gauge" href="/api/rate-limits">
+    Handle rate limit errors
+  </Card>
+  <Card title="SDKs" icon="code" href="/sdks/overview">
+    Use SDKs with built-in error handling
+  </Card>
+  <Card title="Support" icon="life-ring" href="https://go.daytona.io/slack">
+    Get help from the community
+  </Card>
+</CardGroup>

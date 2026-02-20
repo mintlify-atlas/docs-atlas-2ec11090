@@ -1,0 +1,392 @@
+---
+title: File System Operations
+description: Upload, download, and manage files in Daytona sandboxes
+---
+
+The File System API provides comprehensive file management capabilities for working with files and directories within sandbox environments.
+
+## Overview
+
+Daytona's file system operations support:
+- **File upload/download** - Transfer files between local system and sandbox
+- **Directory management** - Create, list, and navigate directories
+- **File search** - Search by name patterns or content
+- **Batch operations** - Process multiple files efficiently
+
+## File Upload
+
+### Upload from Buffer
+
+Upload file content directly from memory:
+
+```typescript
+const configData = JSON.stringify({
+  name: 'my-config',
+  version: '1.0.0'
+}, null, 2);
+
+await sandbox.fs.uploadFile(
+  Buffer.from(configData),
+  'config.json'
+);
+```
+
+### Upload from Local File
+
+Upload a file from your local filesystem:
+
+```typescript
+await sandbox.fs.uploadFile(
+  'local/path/to/file.txt',
+  '/workspace/remote/file.txt'
+);
+```
+
+### Upload Multiple Files
+
+Efficiently upload multiple files in a single operation:
+
+```typescript
+await sandbox.fs.uploadFiles([
+  {
+    source: 'local-file.txt',
+    destination: '/workspace/file1.txt'
+  },
+  {
+    source: Buffer.from('Content'),
+    destination: '/workspace/file2.txt'
+  },
+  {
+    source: Buffer.from('#!/bin/bash\necho "Hello"'),
+    destination: '/workspace/script.sh'
+  }
+]);
+```
+
+<ParamField path="files" type="FileUpload[]" required>
+  Array of files to upload
+  
+  <Expandable title="FileUpload properties">
+    <ParamField path="source" type="string | Buffer" required>
+      File to upload. String path for local file (streamed), or Buffer for in-memory content.
+    </ParamField>
+    
+    <ParamField path="destination" type="string" required>
+      Absolute destination path in the sandbox. Relative paths resolved from sandbox working directory.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Upload timeout in seconds. Default is 30 minutes (1800 seconds). Set to 0 for no timeout.
+</ParamField>
+
+## File Download
+
+### Download to Buffer
+
+Download a file into memory:
+
+```typescript
+const buffer = await sandbox.fs.downloadFile('config.json');
+console.log('Content:', buffer.toString());
+```
+
+### Download to Local File
+
+Download and save to your local filesystem:
+
+```typescript
+await sandbox.fs.downloadFile(
+  '/workspace/data.json',
+  'local-data.json'
+);
+```
+
+### Download Multiple Files
+
+Download multiple files efficiently:
+
+```typescript
+const results = await sandbox.fs.downloadFiles([
+  {
+    source: 'config.json',
+    destination: 'local-config.json'
+  },
+  {
+    source: 'data.txt' // No destination = download to buffer
+  }
+]);
+
+for (const result of results) {
+  if (result.error) {
+    console.error(`Error: ${result.error}`);
+  } else if (typeof result.result === 'string') {
+    console.log(`Downloaded to: ${result.result}`);
+  } else {
+    console.log(`Downloaded ${result.result?.length} bytes`);
+  }
+}
+```
+
+<ParamField path="files" type="FileDownloadRequest[]" required>
+  Array of download requests
+  
+  <Expandable title="FileDownloadRequest properties">
+    <ParamField path="source" type="string" required>
+      Source path in sandbox. Relative paths resolved from sandbox working directory.
+    </ParamField>
+    
+    <ParamField path="destination" type="string">
+      Local path to save file. If omitted, file is downloaded to Buffer (may cause memory issues for large files).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Download timeout in seconds. Default is 30 minutes (1800 seconds).
+</ParamField>
+
+## Directory Management
+
+### Create Directory
+
+```typescript
+await sandbox.fs.createFolder(
+  'project/data',
+  '755' // permissions in octal format
+);
+```
+
+### List Directory Contents
+
+```typescript
+const files = await sandbox.fs.listFiles('/workspace');
+
+files.forEach(file => {
+  console.log(`${file.name} (${file.size} bytes)`);
+  console.log(`Modified: ${file.modTime}`);
+  console.log(`Is directory: ${file.isDir}`);
+});
+```
+
+### Get File Details
+
+```typescript
+const info = await sandbox.fs.getFileDetails('config.json');
+
+console.log(`Size: ${info.size}`);
+console.log(`Permissions: ${info.mode}`);
+console.log(`Owner: ${info.owner}:${info.group}`);
+console.log(`Modified: ${info.modTime}`);
+```
+
+## File Operations
+
+### Move or Rename Files
+
+```typescript
+await sandbox.fs.moveFiles(
+  'old-location/file.txt',
+  'new-location/file.txt'
+);
+```
+
+### Delete Files or Directories
+
+```typescript
+// Delete a file
+await sandbox.fs.deleteFile('temp-file.txt');
+
+// Delete a directory recursively
+await sandbox.fs.deleteFile('temp-dir', true);
+```
+
+### Set File Permissions
+
+```typescript
+await sandbox.fs.setFilePermissions('script.sh', {
+  mode: '755',    // rwxr-xr-x
+  owner: 'daytona',
+  group: 'users'
+});
+```
+
+<ParamField path="path" type="string" required>
+  Path to file or directory. Relative paths resolved from sandbox working directory.
+</ParamField>
+
+<ParamField path="permissions" type="FilePermissionsParams" required>
+  Permission settings
+  
+  <Expandable title="properties">
+    <ParamField path="mode" type="string">
+      File mode in octal format (e.g., "644", "755")
+    </ParamField>
+    
+    <ParamField path="owner" type="string">
+      User owner of the file
+    </ParamField>
+    
+    <ParamField path="group" type="string">
+      Group owner of the file
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## File Search
+
+### Search by Name Pattern
+
+Find files using glob patterns:
+
+```typescript
+const result = await sandbox.fs.searchFiles(
+  '/workspace',
+  '*.json'
+);
+
+console.log(`Found ${result.files.length} JSON files`);
+result.files.forEach(file => console.log(file));
+```
+
+### Search by Content
+
+Search for text patterns within files:
+
+```typescript
+const matches = await sandbox.fs.findFiles(
+  '/workspace',
+  'TODO:'
+);
+
+matches.forEach(match => {
+  console.log(`${match.file}:${match.line}`);
+  console.log(match.content);
+});
+```
+
+## Text Replacement
+
+### Replace in Multiple Files
+
+Find and replace text across multiple files:
+
+```typescript
+const results = await sandbox.fs.replaceInFiles(
+  ['package.json', 'version.ts'],
+  '"version": "1.0.0"',
+  '"version": "1.1.0"'
+);
+
+results.forEach(result => {
+  console.log(`${result.file}: ${result.matches} replacements`);
+});
+```
+
+<ParamField path="files" type="string[]" required>
+  Array of file paths. Relative paths resolved from sandbox working directory.
+</ParamField>
+
+<ParamField path="pattern" type="string" required>
+  Text pattern to replace
+</ParamField>
+
+<ParamField path="newValue" type="string" required>
+  Replacement text
+</ParamField>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use streaming for large files">
+    When uploading or downloading large files, provide a local file path instead of using buffers to enable streaming and avoid memory issues.
+    
+    ```typescript
+    // Good: Streams the file
+    await sandbox.fs.uploadFile('large-file.zip', '/remote/large-file.zip');
+    
+    // Bad: Loads entire file into memory
+    const buffer = fs.readFileSync('large-file.zip');
+    await sandbox.fs.uploadFile(buffer, '/remote/large-file.zip');
+    ```
+  </Accordion>
+
+  <Accordion title="Batch operations for efficiency">
+    Use batch upload/download operations when working with multiple files to reduce network overhead.
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    Check for errors in batch operations, as individual files may fail while others succeed.
+    
+    ```typescript
+    const results = await sandbox.fs.downloadFiles(requests);
+    results.forEach(result => {
+      if (result.error) {
+        console.error(`Failed: ${result.source}: ${result.error}`);
+      }
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Use absolute paths">
+    While relative paths are resolved based on the sandbox working directory, using absolute paths makes your code more explicit and prevents confusion.
+  </Accordion>
+</AccordionGroup>
+
+## Complete Example
+
+```typescript
+import { Daytona } from '@daytonaio/sdk';
+import * as fs from 'fs';
+
+const daytona = new Daytona();
+const sandbox = await daytona.create();
+
+try {
+  // Create directory
+  await sandbox.fs.createFolder('project', '755');
+  
+  // Upload multiple files
+  await sandbox.fs.uploadFiles([
+    {
+      source: 'local-file.txt',
+      destination: 'project/file.txt'
+    },
+    {
+      source: Buffer.from('{"version": "1.0.0"}'),
+      destination: 'project/config.json'
+    }
+  ]);
+  
+  // Search for JSON files
+  const jsonFiles = await sandbox.fs.searchFiles('project', '*.json');
+  console.log('Found JSON files:', jsonFiles.files);
+  
+  // Update version in files
+  await sandbox.fs.replaceInFiles(
+    ['project/config.json'],
+    '"version": "1.0.0"',
+    '"version": "1.1.0"'
+  );
+  
+  // Download updated file
+  const buffer = await sandbox.fs.downloadFile('project/config.json');
+  console.log('Updated config:', buffer.toString());
+  
+} finally {
+  await daytona.delete(sandbox);
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Process Execution" icon="terminal" href="/features/process-execution">
+    Execute commands and code in sandboxes
+  </Card>
+  
+  <Card title="Git Operations" icon="code-branch" href="/features/git-operations">
+    Clone and manage Git repositories
+  </Card>
+</CardGroup>

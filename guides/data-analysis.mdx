@@ -1,0 +1,433 @@
+---
+title: Data Analysis with AI
+description: Build AI-powered data analysis pipelines that execute Python code securely in Daytona sandboxes
+---
+
+## Overview
+
+Daytona sandboxes enable secure, isolated execution of AI-generated data analysis code. Build agents that can explore datasets, generate visualizations, and provide insights - all through natural language prompts.
+
+## Key Capabilities
+
+### Secure Code Execution
+
+- AI-generated Python code runs in isolated sandboxes
+- No risk to host system from untrusted code
+- Automatic environment setup and cleanup
+- Package installation on demand
+
+### Natural Language Interface
+
+- Describe analysis tasks in plain English
+- Agent generates appropriate Python code
+- Automatic chart and visualization generation
+- Structured result extraction
+
+### File Management
+
+- Upload datasets to sandbox environments
+- Download generated charts and reports
+- Process multiple files in batch
+- Persistent storage during analysis session
+
+## Framework Integration
+
+### LangChain Integration
+
+[LangChain](https://docs.langchain.com/) provides powerful agent capabilities with the `DaytonaDataAnalysisTool`.
+
+**Example: Vehicle Price Analysis**
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain_daytona_data_analysis import DaytonaDataAnalysisTool
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.prompts import ChatPromptTemplate
+import os
+
+# Initialize LangChain components
+llm = ChatAnthropic(
+    model="claude-3-5-sonnet-20241022",
+    api_key=os.getenv("ANTHROPIC_API_KEY")
+)
+
+# Create Daytona data analysis tool
+tool = DaytonaDataAnalysisTool(
+    api_key=os.getenv("DAYTONA_API_KEY")
+)
+
+# Upload dataset with description
+with open("dataset.csv", "rb") as f:
+    tool.upload_file(
+        file=f,
+        description="""Vehicle valuations dataset with columns:
+        - year: Manufacturing year
+        - price_in_euro: Vehicle price
+        - mileage_in_km: Kilometers driven
+        
+        Data cleaning needed:
+        - Remove rows with missing values
+        - Filter outliers in year and price
+        """
+    )
+
+# Create agent with data analysis tool
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a data analyst. Use the data analysis tool to answer questions."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, [tool], prompt)
+agent_executor = AgentExecutor(agent=agent, tools=[tool], verbose=True)
+
+# Run analysis with natural language
+result = agent_executor.invoke({
+    "input": """Analyze how vehicle prices vary by manufacturing year.
+    Create a line chart showing average price per year."""
+})
+
+print(result["output"])
+
+# Download generated charts
+for artifact in tool.artifacts:
+    if artifact.endswith('.png'):
+        data = tool.download_file(artifact)
+        with open(artifact, 'wb') as f:
+            f.write(data)
+        print(f"Chart saved to {artifact}")
+
+# Clean up
+tool.close()
+```
+
+**Output Example:**
+
+```
+Result stdout Original dataset shape: (100000, 15)
+After removing missing values: (100000, 15)
+After removing outliers: (90095, 15)
+
+Average price by year:
+year
+2005.0     5968.12
+2010.0    10378.82
+2015.0    18563.86
+2020.0    29400.16
+2023.0    33119.84
+
+Chart saved to chart-0.png
+```
+
+**Key Features:**
+
+- Multi-step reasoning and planning
+- Automatic artifact handling (charts, tables)
+- Dataset upload with metadata
+- Custom result handlers
+- Sandbox file management
+
+**Reference:** [LangChain Data Analysis Example](https://github.com/daytonaio/daytona/tree/main/guides/python/langchain/data-analysis/anthropic)
+
+### OpenAI Direct Integration
+
+Build custom data analysis workflows with OpenAI's API.
+
+**Python Example: Cafe Sales Analysis**
+
+```python
+import openai
+import os
+from daytona_sdk import Daytona
+
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+CODING_MODEL = "gpt-5.1"
+SUMMARY_MODEL = "gpt-4o"
+
+# Generate analysis code
+data_format = """CSV with columns: date, product_name, quantity, price"""
+user_prompt = """Give the three highest revenue products for January 
+                 and show them as a bar chart."""
+
+code_response = client.chat.completions.create(
+    model=CODING_MODEL,
+    messages=[{
+        "role": "user",
+        "content": f"""Data format: {data_format}
+        Task: {user_prompt}
+        
+        Generate Python code using pandas and matplotlib.
+        Save charts as 'chart-N.png'."""
+    }]
+)
+
+generated_code = code_response.choices[0].message.content
+
+# Execute in Daytona sandbox
+daytona = Daytona(api_key=os.getenv("DAYTONA_API_KEY"))
+sandbox = daytona.create_sandbox()
+
+# Upload dataset
+sandbox.upload_file(
+    local_path="cafe_sales_data.csv",
+    remote_path="/home/daytona/data.csv"
+)
+
+# Install dependencies and run code
+sandbox.exec("pip install pandas matplotlib")
+result = sandbox.exec(f"python -c '{generated_code}'")
+
+print(f"✓ Analysis complete")
+print(result.stdout)
+
+# Download charts
+for file in sandbox.list_files("/home/daytona"):
+    if file.endswith('.png'):
+        sandbox.download_file(file, f"./{file}")
+        print(f"✓ Chart saved to {file}")
+
+# Summarize results
+summary = client.chat.completions.create(
+    model=SUMMARY_MODEL,
+    messages=[{
+        "role": "user",
+        "content": f"Summarize these analysis results: {result.stdout}"
+    }]
+)
+
+print(summary.choices[0].message.content)
+
+sandbox.delete()
+```
+
+**TypeScript Example:**
+
+```typescript
+import OpenAI from 'openai';
+import { Daytona } from '@daytona/sdk';
+
+const openai = new OpenAI();
+const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
+
+const CODING_MODEL = 'gpt-5.1';
+const SUMMARY_MODEL = 'gpt-4o';
+
+// Generate code
+const codeResponse = await openai.chat.completions.create({
+  model: CODING_MODEL,
+  messages: [{
+    role: 'user',
+    content: `Analyze cafe sales data and create visualizations...`
+  }]
+});
+
+// Execute in sandbox
+const sandbox = await daytona.createSandbox();
+await sandbox.uploadFile('data.csv', './cafe_sales_data.csv');
+await sandbox.exec('pip install pandas matplotlib');
+const result = await sandbox.exec(`python -c "${generatedCode}"`);
+
+console.log('✓ Analysis complete');
+```
+
+**Reference:** 
+- [Python OpenAI Example](https://github.com/daytonaio/daytona/tree/main/guides/python/ai-data-analyst/openai)
+- [TypeScript OpenAI Example](https://github.com/daytonaio/daytona/tree/main/guides/typescript/ai-data-analyst/openai)
+
+## Advanced Patterns
+
+### Recursive Analysis with DSPy
+
+[DSPy](https://dspy.ai/) enables recursive language models that can call sub-LLMs during analysis.
+
+**Example: RLM with Daytona**
+
+```python
+import dspy
+from daytona_interpreter import DaytonaInterpreter
+
+# Configure DSPy
+lm = dspy.LM("openrouter/google/gemini-3-flash-preview")
+dspy.configure(lm=lm)
+
+# Create RLM with Daytona interpreter
+interpreter = DaytonaInterpreter(
+    api_key=os.getenv("DAYTONA_API_KEY")
+)
+
+rlm = dspy.RLM(
+    signature="question -> answer: str",
+    interpreter=interpreter,
+    verbose=True,
+)
+
+# RLM can call llm_query() from generated code
+result = rlm(
+    question="""Analyze sales trends and use llm_query() to 
+                generate insights for each trend pattern."""
+)
+
+print(result.answer)
+interpreter.shutdown()
+```
+
+**How it works:**
+
+1. RLM prompts LLM with task and REPL history
+2. LLM generates Python code
+3. Code executes in Daytona sandbox (persistent REPL)
+4. Code can call `llm_query()` for sub-reasoning
+5. Output appends to history
+6. Loop continues until `SUBMIT()` called
+
+**Reference:** [DSPy RLM Example](https://github.com/daytonaio/daytona/tree/main/guides/python/dspy-rlms)
+
+### Custom Tools Integration
+
+```python
+from daytona_interpreter import DaytonaInterpreter
+
+def search_knowledge_base(query: str) -> str:
+    """Custom tool that runs on host"""
+    return json.dumps({"results": fetch_from_db(query)})
+
+def query_api(endpoint: str) -> str:
+    """Another custom tool"""
+    return requests.get(endpoint).json()
+
+# Pass tools to interpreter
+interpreter = DaytonaInterpreter(
+    tools={
+        "search_knowledge_base": search_knowledge_base,
+        "query_api": query_api,
+    }
+)
+
+# LLM can now call these functions in generated code
+rlm = dspy.RLM(
+    signature="question -> answer",
+    interpreter=interpreter
+)
+```
+
+## Best Practices
+
+### Dataset Preparation
+
+```python
+# Provide clear data descriptions
+tool.upload_file(
+    file=dataset,
+    description="""Clear description of:
+    - Column names and types
+    - Data quality issues
+    - Required cleaning steps
+    - Business context
+    """
+)
+```
+
+### Error Handling
+
+```python
+try:
+    sandbox = create_sandbox()
+    result = run_analysis(sandbox)
+finally:
+    sandbox.delete()  # Always cleanup
+```
+
+### Result Processing
+
+```python
+def process_results(artifacts):
+    """Custom handler for analysis outputs"""
+    charts = [a for a in artifacts if a.endswith('.png')]
+    tables = [a for a in artifacts if a.endswith('.csv')]
+    
+    return {
+        'visualizations': charts,
+        'data_exports': tables
+    }
+```
+
+### Package Management
+
+```python
+# Install required packages before analysis
+tool.install_python_packages([
+    'pandas',
+    'matplotlib',
+    'seaborn',
+    'scikit-learn'
+])
+```
+
+## Common Use Cases
+
+### Exploratory Data Analysis
+
+```python
+result = agent.invoke({
+    "input": """Perform EDA on the dataset:
+    1. Show summary statistics
+    2. Identify missing values
+    3. Detect outliers
+    4. Show correlation heatmap
+    """
+})
+```
+
+### Time Series Analysis
+
+```python
+result = agent.invoke({
+    "input": """Analyze sales over time:
+    1. Identify trends and seasonality
+    2. Forecast next quarter
+    3. Highlight anomalies
+    """
+})
+```
+
+### Statistical Modeling
+
+```python
+result = agent.invoke({
+    "input": """Build predictive model:
+    1. Feature engineering
+    2. Train/test split
+    3. Model selection
+    4. Evaluate performance
+    """
+})
+```
+
+## API Reference
+
+### DaytonaDataAnalysisTool (LangChain)
+
+```python
+from langchain_daytona_data_analysis import DaytonaDataAnalysisTool
+
+tool = DaytonaDataAnalysisTool(api_key: str)
+
+# Upload dataset
+tool.upload_file(file: IO, description: str) -> SandboxUploadedFile
+
+# Download results
+tool.download_file(remote_path: str) -> bytes
+
+# Install packages
+tool.install_python_packages(packages: str | list[str]) -> None
+
+# Cleanup
+tool.close() -> None
+```
+
+## Related Resources
+
+- [AI Coding Agents](/guides/ai-coding-agents) - Build autonomous coding agents
+- [Jupyter Notebooks](/guides/jupyter-notebooks) - Interactive analysis environments
+- [Multi-Agent Systems](/guides/multi-agent-systems) - Coordinate multiple analysis agents
+- [Python SDK](/sdks/python) - Direct sandbox control

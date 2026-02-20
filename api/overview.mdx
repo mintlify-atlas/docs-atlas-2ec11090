@@ -1,0 +1,209 @@
+---
+title: 'REST API Overview'
+description: 'Introduction to the Daytona REST API for managing sandboxes, snapshots, and development environments'
+---
+
+# REST API Overview
+
+The Daytona REST API provides programmatic access to manage sandboxes, snapshots, volumes, and other platform resources. Use the API to automate workflows, integrate with CI/CD pipelines, or build custom tooling.
+
+## Base URL
+
+The API is available at the following base URL:
+
+```
+http://localhost:3000
+```
+
+For production deployments, replace `localhost:3000` with your Daytona instance URL.
+
+## API Version
+
+The current API version is `1.0`. The API follows semantic versioning principles.
+
+## Authentication
+
+All API requests require authentication. Daytona supports two authentication methods:
+
+- **API Key** - Bearer token authentication using API keys
+- **OAuth 2.0** - OpenID Connect authentication
+
+See the [Authentication](/api/authentication) page for detailed implementation guides.
+
+## SDKs vs REST API
+
+### When to Use SDKs
+
+Daytona provides official SDKs for popular programming languages:
+
+- **Python SDK** - Pythonic interface with type hints
+- **TypeScript SDK** - Full TypeScript support with IntelliSense
+- **Go SDK** - Idiomatic Go with proper error handling
+- **Ruby SDK** - Ruby conventions and best practices
+
+**Use SDKs when:**
+- Building applications in supported languages
+- You want type safety and IDE autocomplete
+- You prefer higher-level abstractions
+- You need automatic retry logic and error handling
+
+See the [SDK Guides](/sdks/overview) for language-specific documentation.
+
+### When to Use the REST API
+
+**Use the REST API directly when:**
+- Working with languages without official SDK support
+- Building shell scripts or command-line tools
+- Integrating with low-code/no-code platforms
+- Debugging or testing API endpoints
+- You need fine-grained control over HTTP requests
+
+## Request Format
+
+All API requests must include:
+
+- **Content-Type header** - Set to `application/json` for requests with body
+- **Authorization header** - Bearer token with your API key
+- **Request body** - Valid JSON (for POST, PUT, PATCH requests)
+
+### Example Request
+
+```bash
+curl -X POST https://api.daytona.io/sandbox \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Daytona-Organization-ID: org_123" \
+  -d '{
+    "alias": "my-sandbox",
+    "snapshot": "ubuntu:22.04"
+  }'
+```
+
+## Response Format
+
+API responses are returned in JSON format with appropriate HTTP status codes.
+
+### Success Response
+
+```json
+{
+  "id": "sandbox_abc123",
+  "alias": "my-sandbox",
+  "snapshot": "ubuntu:22.04",
+  "state": "started",
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+### Error Response
+
+See [Error Handling](/api/errors) for detailed error codes and troubleshooting.
+
+## Organization Context
+
+Many API endpoints support multi-organization access. When using JWT authentication, specify the organization context using the header:
+
+<ParamField header="X-Daytona-Organization-ID" type="string">
+  Organization ID to use for the request. Required when using JWT tokens that have access to multiple organizations.
+</ParamField>
+
+```bash
+curl -X GET https://api.daytona.io/sandbox \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "X-Daytona-Organization-ID: org_123"
+```
+
+## Pagination
+
+List endpoints support pagination to handle large result sets efficiently.
+
+### Paginated Endpoints
+
+Endpoints ending with `/paginated` return structured pagination data:
+
+```bash
+GET /sandbox/paginated?page=1&limit=100
+```
+
+<ParamField query="page" type="number" default="1">
+  Page number of results (minimum: 1)
+</ParamField>
+
+<ParamField query="limit" type="number" default="100">
+  Number of results per page (minimum: 1, maximum: 200)
+</ParamField>
+
+### Pagination Response
+
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 100,
+    "total": 250,
+    "totalPages": 3
+  }
+}
+```
+
+## Filtering and Sorting
+
+Many list endpoints support filtering and sorting capabilities.
+
+### Filtering by Labels
+
+```bash
+GET /sandbox?labels={"env":"production","team":"backend"}
+```
+
+### Filtering by State
+
+```bash
+GET /sandbox/paginated?states=started,stopped
+```
+
+### Sorting Results
+
+```bash
+GET /sandbox/paginated?sort=createdAt&order=desc
+```
+
+<ParamField query="sort" type="string" default="createdAt">
+  Field to sort by (options: id, name, state, snapshot, region, updatedAt, createdAt)
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  Sort direction (options: asc, desc)
+</ParamField>
+
+## Rate Limiting
+
+API requests are subject to rate limits to ensure platform stability. See [Rate Limits](/api/rate-limits) for details.
+
+## OpenAPI Specification
+
+The complete OpenAPI 3.0 specification is available for:
+
+- **Generating clients** in any language
+- **API testing tools** like Postman or Insomnia
+- **Documentation generators**
+
+Contact support for access to the OpenAPI specification file.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Learn how to authenticate API requests
+  </Card>
+  <Card title="Sandboxes API" icon="box" href="/api/sandboxes/create">
+    Create and manage sandboxes
+  </Card>
+  <Card title="Rate Limits" icon="gauge" href="/api/rate-limits">
+    Understand rate limiting policies
+  </Card>
+  <Card title="Error Codes" icon="triangle-exclamation" href="/api/errors">
+    Handle API errors gracefully
+  </Card>
+</CardGroup>

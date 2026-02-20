@@ -1,0 +1,82 @@
+---
+title: List volumes
+description: Retrieve a list of all volumes in your organization
+openapi: GET /volumes
+---
+
+List all volumes in your organization with optional filtering.
+
+## Query parameters
+
+<ParamField query="includeDeleted" type="boolean" default={false}>
+  Include volumes that have been deleted in the response
+</ParamField>
+
+## Response
+
+Returns an array of volume objects.
+
+<ResponseField name="id" type="string">
+  Unique identifier for the volume
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Volume name
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  Volume size in GB
+</ResponseField>
+
+<ResponseField name="state" type="string">
+  Current state: `creating`, `ready`, `deleting`, `deleted`, `error`
+</ResponseField>
+
+<ResponseField name="organizationId" type="string">
+  ID of the organization that owns the volume
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of volume creation
+</ResponseField>
+
+<ResponseField name="deletedAt" type="string">
+  ISO 8601 timestamp of volume deletion (only present if deleted)
+</ResponseField>
+
+## Example request
+
+```bash
+curl https://api.daytona.io/volumes \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example response
+
+```json
+[
+  {
+    "id": "vol_abc123",
+    "name": "my-data-volume",
+    "size": 50,
+    "state": "ready",
+    "organizationId": "org_123",
+    "createdAt": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "vol_def456",
+    "name": "cache-volume",
+    "size": 100,
+    "state": "ready",
+    "organizationId": "org_123",
+    "createdAt": "2024-01-14T09:15:00Z"
+  }
+]
+```
+
+## List only deleted volumes
+
+```bash
+curl https://api.daytona.io/volumes?includeDeleted=true \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```

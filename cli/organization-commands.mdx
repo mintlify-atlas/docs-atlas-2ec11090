@@ -1,0 +1,394 @@
+---
+title: Organization Commands
+description: Complete reference for Daytona organization management commands
+---
+
+## Overview
+
+Organization commands allow you to create and manage organizations, which are the top-level containers for sandboxes, snapshots, and volumes in Daytona. Organizations provide resource isolation and team collaboration capabilities.
+
+## daytona organization create
+
+Create a new organization and set it as the active organization.
+
+### Usage
+
+```bash
+daytona organization create [ORGANIZATION_NAME]
+```
+
+### Examples
+
+```bash
+# Create a new organization
+daytona organization create my-team
+
+# Create an organization with a descriptive name
+daytona organization create acme-engineering
+```
+
+### Output
+
+Displays organization details and a pending approval message:
+
+```
+[organization details]
+Your organization has been created and its approval is pending
+Our team has been notified and will set up your resource quotas shortly
+```
+
+### Notes
+
+- The newly created organization is automatically set as your active organization
+- New organizations require approval before full access is granted
+- Resource quotas are configured by the Daytona team during the approval process
+
+---
+
+## daytona organization list
+
+List all organizations you have access to.
+
+### Usage
+
+```bash
+daytona organization list [flags]
+```
+
+### Flags
+
+- `--format` - Output format (json, yaml)
+
+### Examples
+
+```bash
+# List all organizations
+daytona organization list
+
+# Get organizations as JSON
+daytona organization list --format json
+
+# Get organizations as YAML
+daytona organization list --format yaml
+```
+
+### Output
+
+Displays a table with:
+- Organization ID
+- Organization name
+- Active status (indicates which organization is currently active)
+- Created date
+- Status (Active, Pending, etc.)
+
+```
+ID                                    NAME                 ACTIVE    STATUS
+7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d  Personal            *         Active
+8g9b0d3e-4f2g-5c7b-0d1e-6f9g8b3c4d5e  acme-engineering              Active
+```
+
+---
+
+## daytona organization use
+
+Switch to a different organization as your active organization.
+
+### Usage
+
+```bash
+daytona organization use [ORGANIZATION] [flags]
+```
+
+### Arguments
+
+- `[ORGANIZATION]` - Organization ID or name (optional - if not provided, an interactive prompt will be shown)
+
+### Examples
+
+```bash
+# Switch to an organization by name
+daytona organization use acme-engineering
+
+# Switch to an organization by ID
+daytona organization use 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+
+# Interactive selection (no argument)
+daytona organization use
+```
+
+### Output
+
+```
+Organization acme-engineering is now active
+```
+
+### Notes
+
+- The active organization determines which resources (sandboxes, snapshots, volumes) you see and interact with
+- All subsequent commands will use the active organization's context
+- You can switch between organizations at any time
+
+---
+
+## daytona organization delete
+
+Delete an organization.
+
+### Usage
+
+```bash
+daytona organization delete [ORGANIZATION] [flags]
+```
+
+### Arguments
+
+- `[ORGANIZATION]` - Organization ID or name (optional - if not provided, an interactive prompt will be shown)
+
+### Examples
+
+```bash
+# Delete an organization by name
+daytona organization delete old-team
+
+# Delete an organization by ID
+daytona organization delete 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+
+# Interactive selection (no argument)
+daytona organization delete
+```
+
+### Output
+
+```
+Organization old-team has been deleted
+```
+
+### Notes
+
+- You cannot delete your Personal organization
+- If you delete the currently active organization, the system automatically switches to your Personal organization
+- All resources (sandboxes, snapshots, volumes) in the organization will be deleted
+- This action is irreversible
+
+---
+
+## Understanding Organizations
+
+### Personal Organization
+
+Every user has a default "Personal" organization:
+
+- Created automatically when you first log in
+- Cannot be deleted
+- Used as the fallback when other organizations are deleted
+- Ideal for personal projects and experimentation
+
+### Team Organizations
+
+Additional organizations can be created for:
+
+- Team collaboration
+- Project isolation
+- Resource management
+- Different environments (dev, staging, production)
+
+---
+
+## Common Patterns
+
+### Create Organization for a Team
+
+```bash
+# Create the organization
+daytona organization create acme-backend-team
+
+# Wait for approval
+# Once approved, create resources
+daytona create --snapshot ubuntu --name team-dev-env
+```
+
+### Switch Between Personal and Team Work
+
+```bash
+# Work on personal projects
+daytona organization use Personal
+daytona create --snapshot ubuntu --name my-experiment
+
+# Switch to team organization
+daytona organization use acme-engineering
+daytona create --snapshot node --name team-api-server
+
+# List only team sandboxes
+daytona list
+```
+
+### Manage Multiple Projects
+
+```bash
+# Create organizations for different projects
+daytona organization create project-alpha
+daytona organization create project-beta
+
+# Work on project alpha
+daytona organization use project-alpha
+daytona create --snapshot python --name alpha-backend
+daytona volume create alpha-data
+
+# Switch to project beta
+daytona organization use project-beta
+daytona create --snapshot node --name beta-frontend
+daytona volume create beta-data
+
+# List all organizations
+daytona organization list
+```
+
+### Clean Up Old Organization
+
+```bash
+# List organizations
+daytona organization list
+
+# Switch away from the organization to delete
+daytona organization use Personal
+
+# Delete the old organization
+daytona organization delete old-project
+```
+
+### Scripted Organization Management
+
+```bash
+#!/bin/bash
+
+# Get current active organization
+CURRENT_ORG=$(daytona organization list --format json | jq -r '.[] | select(.active) | .name')
+echo "Current organization: $CURRENT_ORG"
+
+# Switch to different organization
+daytona organization use production-team
+
+# Do work...
+daytona create --snapshot ubuntu --name prod-sandbox
+
+# Switch back
+daytona organization use "$CURRENT_ORG"
+```
+
+---
+
+## Organization Best Practices
+
+### Naming Conventions
+
+Use clear, descriptive names:
+
+```bash
+# Good names
+daytona organization create acme-backend-team
+daytona organization create project-phoenix-dev
+daytona organization create client-xyz-production
+
+# Avoid generic names
+# daytona organization create test
+# daytona organization create org1
+```
+
+### Resource Organization
+
+Group related resources in the same organization:
+
+```bash
+# Create organization for a project
+daytona organization create ecommerce-platform
+
+# Use it for all project resources
+daytona organization use ecommerce-platform
+
+# Create related resources
+daytona volume create postgres-data
+daytona snapshot create custom-backend
+daytona create --snapshot custom-backend --name api-server
+daytona create --snapshot postgres --name database
+```
+
+### Environment Separation
+
+Use different organizations for different environments:
+
+```bash
+# Development environment
+daytona organization create myapp-development
+daytona organization use myapp-development
+daytona create --snapshot node --name dev-api
+
+# Staging environment
+daytona organization create myapp-staging
+daytona organization use myapp-staging
+daytona create --snapshot node --name staging-api
+
+# Production environment
+daytona organization create myapp-production
+daytona organization use myapp-production
+daytona create --snapshot node --name prod-api
+```
+
+### Check Active Organization
+
+Always verify which organization you're working in:
+
+```bash
+# Before creating resources
+daytona organization list
+
+# Or check with format flag
+daytona organization list --format json | jq -r '.[] | select(.active)'
+```
+
+### Interactive Selection
+
+When unsure, use interactive mode:
+
+```bash
+# Interactive organization selection
+daytona organization use
+
+# Interactive organization deletion
+daytona organization delete
+```
+
+---
+
+## Troubleshooting
+
+### Organization Approval Pending
+
+If your organization is pending approval:
+
+1. Wait for the Daytona team to review and approve
+2. Check your email for approval notifications
+3. Contact support if approval takes longer than expected
+
+### Cannot Delete Personal Organization
+
+The Personal organization is protected:
+
+```bash
+# This will fail
+daytona organization delete Personal
+
+# Error: cannot delete personal organization
+```
+
+You can always use your Personal organization, but cannot delete it.
+
+### Lost Active Organization Context
+
+If you're unsure which organization is active:
+
+```bash
+# Check active organization
+daytona organization list
+
+# The active organization will have an asterisk (*) or be marked as ACTIVE
+```

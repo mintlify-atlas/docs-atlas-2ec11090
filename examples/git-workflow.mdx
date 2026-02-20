@@ -1,0 +1,469 @@
+---
+title: Git Operations
+description: Clone repositories and perform Git operations in sandboxes
+---
+
+This example demonstrates how to work with Git repositories in Daytona sandboxes, including cloning, status checking, and using the Language Server Protocol (LSP).
+
+## What You'll Learn
+
+- Cloning Git repositories
+- Pulling latest changes
+- Checking repository status
+- Listing branches
+- Integrating with LSP for code intelligence
+- Finding and modifying code
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Python">
+```python
+from daytona import CreateSandboxFromImageParams, Daytona, Image, LspCompletionPosition
+
+
+def main():
+    daytona = Daytona()
+
+    sandbox = daytona.create(
+        CreateSandboxFromImageParams(
+            image=(
+                Image.base("ubuntu:25.10").run_commands(
+                    "apt-get update && apt-get install -y --no-install-recommends nodejs npm coreutils",
+                    "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
+                    "apt-get install -y nodejs",
+                    "npm install -g ts-node typescript typescript-language-server",
+                )
+            ),
+        ),
+        timeout=200,
+        on_snapshot_create_logs=print,
+    )
+
+    try:
+        project_dir = "learn-typescript"
+
+        # Clone the repository
+        sandbox.git.clone(
+            "https://github.com/panaverse/learn-typescript",
+            project_dir,
+            "master",
+        )
+
+        sandbox.git.pull(project_dir)
+
+        # Search for the file we want to work on
+        matches = sandbox.fs.find_files(project_dir, "var obj1 = new Base();")
+        print("Matches:", matches)
+
+        # Start the language server
+        lsp = sandbox.create_lsp_server("typescript", project_dir)
+        lsp.start()
+
+        # Notify the language server of the document we want to work on
+        lsp.did_open(matches[0].file)
+
+        # Get symbols in the document
+        symbols = lsp.document_symbols(matches[0].file)
+        print("Symbols:", symbols)
+
+        # Fix the error in the document
+        _ = sandbox.fs.replace_in_files([matches[0].file], "var obj1 = new Base();", "var obj1 = new E();")
+
+        # Notify the language server of the document change
+        lsp.did_close(matches[0].file)
+        lsp.did_open(matches[0].file)
+
+        # Get completions at a specific position
+        completions = lsp.completions(matches[0].file, LspCompletionPosition(line=12, character=18))
+        print("Completions:", completions)
+
+    except Exception as error:
+        print("Error executing example:", error)
+    finally:
+        # Cleanup
+        daytona.delete(sandbox)
+
+
+if __name__ == "__main__":
+    main()
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { Daytona, Image } from '@daytonaio/sdk'
+
+async function main() {
+  const daytona = new Daytona()
+
+  //  first, create a sandbox
+  const sandbox = await daytona.create(
+    {
+      image: Image.base('ubuntu:25.10').runCommands(
+        'apt-get update && apt-get install -y --no-install-recommends nodejs npm coreutils',
+        'curl -fsSL https://deb.nodesource.com/setup_20.x | bash -',
+        'apt-get install -y nodejs',
+        'npm install -g ts-node typescript typescript-language-server',
+      ),
+      language: 'typescript',
+    },
+    {
+      onSnapshotCreateLogs: console.log,
+    },
+  )
+
+  try {
+    const projectDir = 'learn-typescript'
+
+    //  clone the repository
+    await sandbox.git.clone('https://github.com/panaverse/learn-typescript', projectDir, 'master')
+
+    //  search for the file we want to work on
+    const matches = await sandbox.fs.findFiles(projectDir, 'var obj1 = new Base();')
+    console.log('Matches:', matches)
+
+    //  start the language server
+    const lsp = await sandbox.createLspServer('typescript', projectDir)
+    await lsp.start()
+
+    //  notify the language server of the document we want to work on
+    await lsp.didOpen(matches[0].file!)
+
+    //  get symbols in the document
+    const symbols = await lsp.documentSymbols(matches[0].file!)
+    console.log('Symbols:', symbols)
+
+    //  fix the error in the document
+    await sandbox.fs.replaceInFiles([matches[0].file!], 'var obj1 = new Base();', 'var obj1 = new E();')
+
+    //  notify the language server of the document change
+    await lsp.didClose(matches[0].file!)
+    await lsp.didOpen(matches[0].file!)
+
+    //  get completions at a specific position
+    const completions = await lsp.completions(matches[0].file!, {
+      line: 12,
+      character: 18,
+    })
+    console.log('Completions:', completions)
+  } catch (error) {
+    console.error('Error creating sandbox:', error)
+  } finally {
+    //  cleanup
+    await daytona.delete(sandbox)
+  }
+}
+
+main()
+```
+  </Tab>
+  <Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+	client, err := daytona.NewClient()
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Create a sandbox
+	log.Println("Creating sandbox...")
+	params := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language: types.CodeLanguagePython,
+		},
+	}
+
+	sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+
+	log.Printf("✓ Created sandbox: %s (ID: %s)\n", sandbox.Name, sandbox.ID)
+	defer func() {
+		log.Println("\nCleaning up...")
+		if err := sandbox.Delete(ctx); err != nil {
+			log.Printf("Failed to delete sandbox: %v", err)
+		} else {
+			log.Println("✓ Sandbox deleted")
+		}
+	}()
+
+	// Git operations example
+	log.Println("\nGit operations example...")
+	repoPath := "/tmp/test-repo"
+
+	// Create directory for repo
+	if err := sandbox.FileSystem.CreateFolder(ctx, repoPath); err != nil {
+		log.Fatalf("Failed to create repo directory: %v", err)
+	}
+
+	// Clone a public repository
+	repoURL := "https://github.com/daytonaio/daytona.git"
+	log.Printf("Cloning %s...\n", repoURL)
+	if err := sandbox.Git.Clone(ctx, repoURL, repoPath); err != nil {
+		log.Fatalf("Failed to clone repository: %v", err)
+	}
+	log.Println("✓ Repository cloned")
+
+	// Get status
+	status, err := sandbox.Git.Status(ctx, repoPath)
+	if err != nil {
+		log.Fatalf("Failed to get git status: %v", err)
+	}
+	log.Printf("Current branch: %s\n", status.CurrentBranch)
+
+	// List branches
+	branches, err := sandbox.Git.Branches(ctx, repoPath)
+	if err != nil {
+		log.Fatalf("Failed to list branches: %v", err)
+	}
+	log.Printf("Branches: %v\n", branches)
+
+	log.Println("\n✓ All git operations completed successfully!")
+}
+```
+  </Tab>
+</Tabs>
+
+## Expected Output
+
+```
+Creating sandbox...
+[Build logs...]
+Cloning repository...
+Matches: {"files": [{"file": "learn-typescript/step08_classes/class.ts", "line": 15}]}
+Starting LSP server...
+Symbols: [{"name": "Base", "kind": "class", ...}]
+Replacing content...
+Completions: [{"label": "E", "kind": "class", ...}]
+```
+
+## Key Concepts
+
+### Cloning Repositories
+
+Clone any public or private Git repository:
+
+<CodeGroup>
+```python Python
+# Public repository
+sandbox.git.clone(
+    "https://github.com/user/repo.git",
+    "local-dir",
+    "main"  # branch name
+)
+
+# Private repository with auth
+sandbox.git.clone(
+    "https://github.com/user/private-repo.git",
+    "local-dir",
+    "main",
+    username="your-username",
+    password="ghp_your_token"
+)
+```
+
+```typescript TypeScript
+// Public repository
+await sandbox.git.clone(
+  'https://github.com/user/repo.git',
+  'local-dir',
+  'main'
+)
+
+// Private repository with auth
+await sandbox.git.clone(
+  'https://github.com/user/private-repo.git',
+  'local-dir',
+  'main',
+  'your-username',
+  'ghp_your_token'
+)
+```
+
+```go Go
+// Public repository
+err := sandbox.Git.Clone(ctx, repoURL, repoPath)
+
+// With options (branch, auth, etc.)
+err := sandbox.Git.Clone(ctx, repoURL, repoPath,
+    options.WithBranch("main"),
+    options.WithUsername("user"),
+    options.WithPassword("token"),
+)
+```
+</CodeGroup>
+
+### Git Status and Branches
+
+Check repository status and available branches:
+
+<CodeGroup>
+```python Python
+# Get status
+status = sandbox.git.status("repo-dir")
+print(f"Branch: {status.current_branch}")
+print(f"Modified files: {status.modified}")
+
+# List branches
+branches = sandbox.git.branches("repo-dir")
+for branch in branches:
+    print(f"  - {branch}")
+```
+
+```typescript TypeScript
+// Get status
+const status = await sandbox.git.status('repo-dir')
+console.log(`Branch: ${status.currentBranch}`)
+console.log(`Modified files: ${status.modified}`)
+
+// List branches
+const branches = await sandbox.git.branches('repo-dir')
+branches.forEach(branch => console.log(`  - ${branch}`))
+```
+
+```go Go
+// Get status
+status, err := sandbox.Git.Status(ctx, repoPath)
+log.Printf("Branch: %s\n", status.CurrentBranch)
+
+// List branches
+branches, err := sandbox.Git.Branches(ctx, repoPath)
+for _, branch := range branches {
+    log.Printf("  - %s\n", branch)
+}
+```
+</CodeGroup>
+
+### Language Server Protocol (LSP)
+
+Use LSP for code intelligence:
+
+```python
+# Create LSP server for TypeScript
+lsp = sandbox.create_lsp_server("typescript", "project-dir")
+lsp.start()
+
+# Open a file
+lsp.did_open("src/index.ts")
+
+# Get completions
+completions = lsp.completions(
+    "src/index.ts",
+    LspCompletionPosition(line=10, character=5)
+)
+
+# Get symbols
+symbols = lsp.document_symbols("src/index.ts")
+
+# Close when done
+lsp.did_close("src/index.ts")
+```
+
+Supported LSP languages:
+- `typescript` / `javascript`
+- `python`
+- `go`
+- `rust`
+- `java`
+- And more...
+
+### Finding Code
+
+Search for code patterns across files:
+
+```python
+# Find specific text
+matches = sandbox.fs.find_files("project-dir", "function handleClick")
+
+for match in matches:
+    print(f"Found in {match.file} at line {match.line}")
+    print(f"Content: {match.content}")
+```
+
+## Common Workflows
+
+### Clone, Modify, and Analyze
+
+```python
+# 1. Clone repository
+sandbox.git.clone("https://github.com/user/project", "project")
+
+# 2. Find files to modify
+matches = sandbox.fs.find_files("project", "TODO:")
+
+# 3. Replace content
+for match in matches:
+    sandbox.fs.replace_in_files(
+        [match.file],
+        "TODO: implement this",
+        "# Implementation complete"
+    )
+
+# 4. Check status
+status = sandbox.git.status("project")
+print(f"Modified: {status.modified}")
+```
+
+### Code Intelligence Workflow
+
+```python
+# 1. Clone and setup LSP
+sandbox.git.clone(repo_url, "project")
+lsp = sandbox.create_lsp_server("python", "project")
+lsp.start()
+
+# 2. Analyze code
+lsp.did_open("project/main.py")
+symbols = lsp.document_symbols("project/main.py")
+
+# 3. Get completions for refactoring
+completions = lsp.completions(
+    "project/main.py",
+    LspCompletionPosition(line=20, character=10)
+)
+
+# 4. Make changes and re-analyze
+sandbox.fs.replace_in_files(["project/main.py"], old, new)
+lsp.did_close("project/main.py")
+lsp.did_open("project/main.py")
+```
+
+## Best Practices
+
+<Tip>
+**Use shallow clones**: For large repositories, consider cloning only recent history to save time and space.
+</Tip>
+
+<Warning>
+**Authentication**: For private repositories, use personal access tokens instead of passwords. Store tokens securely.
+</Warning>
+
+<Note>
+**LSP Performance**: LSP servers may take a moment to initialize. Wait for initialization before requesting completions or symbols.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Code Execution" icon="code" href="/examples/code-execution">
+    Execute code in sandboxes
+  </Card>
+  <Card title="File Operations" icon="file" href="/examples/file-operations">
+    Advanced file manipulation
+  </Card>
+</CardGroup>

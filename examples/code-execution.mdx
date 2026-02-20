@@ -1,0 +1,720 @@
+---
+title: Code Execution
+description: Run code, execute commands, and use the stateful code interpreter
+---
+
+This example demonstrates various ways to execute code in Daytona sandboxes, from simple commands to stateful code interpretation.
+
+## What You'll Learn
+
+- Running code directly with `code_run()`
+- Executing OS commands with `exec()`
+- Using execution sessions for stateful operations
+- Streaming command output asynchronously
+- Using the stateful code interpreter
+- Context isolation and management
+- Timeout handling
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Python">
+```python
+from daytona import (
+    CreateSandboxFromImageParams,
+    Daytona,
+    DaytonaTimeoutError,
+    ExecutionError,
+    OutputMessage,
+    Resources,
+    Sandbox,
+)
+
+
+def main():
+    daytona = Daytona()
+
+    params = CreateSandboxFromImageParams(
+        image="python:3.9.23-slim",
+        language="python",
+        resources=Resources(
+            cpu=1,
+            memory=1,
+            disk=3,
+        ),
+    )
+    sandbox = daytona.create(params, timeout=150, on_snapshot_create_logs=print)
+
+    # Run the code securely inside the sandbox
+    response = sandbox.process.code_run('print("Hello World!")')
+    if response.exit_code != 0:
+        print(f"Error: {response.exit_code} {response.result}")
+    else:
+        print(response.result)
+
+    # Execute an os command in the sandbox
+    response = sandbox.process.exec('echo "Hello World from exec!"', timeout=10)
+    if response.exit_code != 0:
+        print(f"Error: {response.exit_code} {response.result}")
+    else:
+        print(response.result)
+
+    stateful_code_interpreter(sandbox)
+
+    daytona.delete(sandbox)
+
+
+def stateful_code_interpreter(sandbox: Sandbox):
+    def handle_stdout(message: OutputMessage):
+        print(f"[STDOUT] {message.output}")
+
+    def handle_stderr(message: OutputMessage):
+        print(f"[STDERR] {message.output}")
+
+    def handle_error(error: ExecutionError):
+        print(f"[ERROR] {error.name}: {error.value}\n{error.traceback}")
+
+    print("\n" + "=" * 60)
+    print("Stateful Code Interpreter")
+    print("=" * 60)
+
+    print("=" * 10 + " Statefulness in the default context " + "=" * 10)
+    result = sandbox.code_interpreter.run_code("counter = 1\nprint(f'Initialized counter = {counter}')")
+    print(f"[STDOUT] {result.stdout}")
+
+    result = sandbox.code_interpreter.run_code(
+        "counter += 1\nprint(f'Counter after second call = {counter}')",
+        on_stdout=handle_stdout,
+        on_stderr=handle_stderr,
+        on_error=handle_error,
+    )
+
+    print("=" * 10 + " Context isolation " + "=" * 10)
+    ctx = sandbox.code_interpreter.create_context()
+    try:
+        ctx_result = sandbox.code_interpreter.run_code(
+            "value = 'stored in isolated context'\nprint(f'Isolated context value: {value}')",
+            context=ctx,
+            on_stdout=handle_stdout,
+            on_stderr=handle_stderr,
+            on_error=handle_error,
+        )
+
+        print("-" * 3 + " Print value from same context " + "-" * 3)
+        ctx_result = sandbox.code_interpreter.run_code(
+            "print(f'Value still available: {value}')",
+            context=ctx,
+        )
+        print(f"[STDOUT] {ctx_result.stdout}")
+
+        print("-" * 3 + " Print value from different context " + "-" * 3)
+        _ = sandbox.code_interpreter.run_code(
+            "print(value)",
+            on_stdout=handle_stdout,
+            on_stderr=handle_stderr,
+            on_error=handle_error,
+        )
+    finally:
+        sandbox.code_interpreter.delete_context(ctx)
+
+    print("=" * 10 + " Timeout handling " + "=" * 10)
+    try:
+        code = """
+import time
+print('Starting long running task...')
+time.sleep(5)
+print('Finished!')
+"""
+        _ = sandbox.code_interpreter.run_code(
+            code,
+            timeout=1,
+            on_stdout=handle_stdout,
+            on_stderr=handle_stderr,
+            on_error=handle_error,
+        )
+    except DaytonaTimeoutError as exc:
+        print(f"Timed out as expected: {exc}")
+
+
+if __name__ == "__main__":
+    main()
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { Daytona, Sandbox, Image, DaytonaTimeoutError, ExecutionError, OutputMessage } from '@daytonaio/sdk'
+
+async function basicExec(sandbox: Sandbox) {
+  //  run some typescript code directly
+  const codeResult = await sandbox.process.codeRun('console.log("Hello World from code!")')
+  if (codeResult.exitCode !== 0) {
+    console.error('Error running code:', codeResult.exitCode)
+  } else {
+    console.log(codeResult.result)
+  }
+
+  //  run os command
+  const cmdResult = await sandbox.process.executeCommand('echo "Hello World from CMD!"')
+  if (cmdResult.exitCode !== 0) {
+    console.error('Error running code:', cmdResult.exitCode)
+  } else {
+    console.log(cmdResult.result)
+  }
+}
+
+async function sessionExec(sandbox: Sandbox) {
+  //  exec session
+  //  session allows for multiple commands to be executed in the same context
+  await sandbox.process.createSession('exec-session-1')
+
+  //  get the session details any time
+  const session = await sandbox.process.getSession('exec-session-1')
+  console.log('session: ', session)
+
+  //  execute a first command in the session
+  const command = await sandbox.process.executeSessionCommand('exec-session-1', {
+    command: 'export FOO=BAR',
+  })
+
+  //  get the session details again to see the command has been executed
+  const sessionUpdated = await sandbox.process.getSession('exec-session-1')
+  console.log('sessionUpdated: ', sessionUpdated)
+
+  //  get the command details
+  const sessionCommand = await sandbox.process.getSessionCommand('exec-session-1', command.cmdId)
+  console.log('sessionCommand: ', sessionCommand)
+
+  //  execute a second command in the session and see that the environment variable is set
+  const response = await sandbox.process.executeSessionCommand('exec-session-1', {
+    command: 'echo $FOO',
+  })
+  console.log(`FOO=${response.stdout}`)
+
+  //  we can also get the logs for the command any time after it is executed
+  const logs = await sandbox.process.getSessionCommandLogs('exec-session-1', response.cmdId)
+  console.log('[STDOUT]:', logs.stdout)
+  console.log('[STDERR]:', logs.stderr)
+
+  //  we can also delete the session
+  await sandbox.process.deleteSession('exec-session-1')
+}
+
+async function statefulCodeInterpreter(sandbox: Sandbox) {
+  const logStdout = (msg: OutputMessage) => process.stdout.write(`[STDOUT] ${msg.output}`)
+  const logStderr = (msg: OutputMessage) => process.stdout.write(`[STDERR] ${msg.output}`)
+  const logError = (err: ExecutionError) => {
+    process.stdout.write(`[ERROR] ${err.name}: ${err.value}\n`)
+    if (err.traceback) {
+      process.stdout.write(`${err.traceback}\n`)
+    }
+  }
+
+  console.log('\n' + '='.repeat(60))
+  console.log('Stateful Code Interpreter')
+  console.log('='.repeat(60))
+  const baseline = await sandbox.codeInterpreter.runCode(`counter = 1
+print(f'Initialized counter = {counter}')`)
+  process.stdout.write(`[STDOUT] ${baseline.stdout}`)
+
+  await sandbox.codeInterpreter.runCode(
+    `counter += 1
+print(f'Counter after second call = {counter}')`,
+    {
+      onStdout: logStdout,
+      onStderr: logStderr,
+      onError: logError,
+    },
+  )
+
+  console.log('\n' + '='.repeat(60))
+  console.log('Context isolation')
+  console.log('='.repeat(60))
+  const ctx = await sandbox.codeInterpreter.createContext()
+  try {
+    await sandbox.codeInterpreter.runCode(
+      `value = 'stored in isolated context'
+print(f'Isolated context value: {value}')`,
+      {
+        context: ctx,
+        onStdout: logStdout,
+        onStderr: logStderr,
+        onError: logError,
+      },
+    )
+
+    console.log('--- Print value from same context ---')
+    const ctxResult = await sandbox.codeInterpreter.runCode("print(f'Value still available: {value}')", {
+      context: ctx,
+    })
+    process.stdout.write(`[STDOUT] ${ctxResult.stdout}`)
+
+    console.log('--- Print value from different context ---')
+    await sandbox.codeInterpreter.runCode('print(value)', {
+      onStdout: logStdout,
+      onStderr: logStderr,
+      onError: logError,
+    })
+  } finally {
+    await sandbox.codeInterpreter.deleteContext(ctx)
+  }
+
+  console.log('\n' + '='.repeat(60))
+  console.log('Timeout handling')
+  console.log('='.repeat(60))
+  try {
+    await sandbox.codeInterpreter.runCode(
+      `import time
+print('Starting long running task...')
+time.sleep(5)
+print('Finished!')`,
+      {
+        timeout: 1,
+        onStdout: logStdout,
+        onStderr: logStderr,
+        onError: logError,
+      },
+    )
+  } catch (error) {
+    if (error instanceof DaytonaTimeoutError) {
+      console.log(`Timed out as expected: ${error.message}`)
+    } else {
+      throw error
+    }
+  }
+}
+
+async function main() {
+  const daytona = new Daytona()
+
+  const sandbox = await daytona.create(
+    {
+      image: Image.base('ubuntu:22.04').runCommands(
+        'apt-get update',
+        'apt-get install -y --no-install-recommends python3 python3-pip python3-venv',
+        'apt-get install -y --no-install-recommends nodejs npm coreutils',
+        'curl -fsSL https://deb.nodesource.com/setup_20.x | bash -',
+        'apt-get install -y nodejs',
+        'npm install -g ts-node typescript',
+      ),
+      language: 'typescript',
+    },
+    {
+      timeout: 200,
+      onSnapshotCreateLogs: console.log,
+    },
+  )
+
+  try {
+    await basicExec(sandbox)
+    await sessionExec(sandbox)
+    await statefulCodeInterpreter(sandbox)
+  } catch (error) {
+    console.error('Error executing commands:', error)
+  } finally {
+    await daytona.delete(sandbox)
+  }
+}
+
+main()
+```
+  </Tab>
+  <Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+	client, err := daytona.NewClient()
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	log.Println("Creating sandbox...")
+	params := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language: types.CodeLanguagePython,
+		},
+	}
+
+	sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+
+	log.Printf("✓ Created sandbox: %s (ID: %s)\n\n", sandbox.Name, sandbox.ID)
+
+	// Get the code interpreter service for this sandbox
+	interpreter := sandbox.CodeInterpreter
+
+	// Example 1: Simple code execution
+	log.Println("=== Example 1: Simple Python execution ===")
+	channels, err := interpreter.RunCode(
+		ctx,
+		"print('Hello from Daytona!')\nprint('Python version:', __import__('sys').version)",
+	)
+	if err != nil {
+		log.Fatalf("Failed to run code: %v", err)
+	}
+
+	// Wait for execution to complete
+	result := <-channels.Done
+	log.Printf("Output:\n%s\n", result.Stdout)
+	if result.Stderr != "" {
+		log.Printf("Stderr:\n%s\n", result.Stderr)
+	}
+	if result.Error != nil {
+		log.Printf("Error: %s - %s\n", result.Error.Name, result.Error.Value)
+	}
+
+	// Example 2: Execution with real-time streaming
+	log.Println("\n=== Example 2: Execution with real-time streaming ===")
+
+	channels, err = interpreter.RunCode(
+		ctx,
+		`import time
+for i in range(5):
+    print(f"Processing step {i+1}...")
+    time.sleep(0.5)
+print("Done!")`,
+	)
+	if err != nil {
+		log.Fatalf("Failed to run code: %v", err)
+	}
+
+	// Start goroutines to read from channels in real-time
+	go func() {
+		for msg := range channels.Stdout {
+			log.Printf("[STDOUT] %s", msg.Text)
+		}
+	}()
+	go func() {
+		for msg := range channels.Stderr {
+			log.Printf("[STDERR] %s", msg.Text)
+		}
+	}()
+	go func() {
+		for execErr := range channels.Errors {
+			log.Printf("[ERROR] %s: %s\n", execErr.Name, execErr.Value)
+			if execErr.Traceback != nil {
+				log.Printf("Traceback:\n%s\n", *execErr.Traceback)
+			}
+		}
+	}()
+
+	// Wait for execution to complete
+	<-channels.Done
+	log.Printf("Execution completed\n")
+
+	// Example 3: Error handling with channels
+	log.Println("\n=== Example 3: Error handling ===")
+
+	channels, err = interpreter.RunCode(
+		ctx,
+		`# This will cause a runtime error
+x = 1 / 0`,
+	)
+	if err != nil {
+		log.Fatalf("Failed to run code: %v", err)
+	}
+
+	// Read from error channel in real-time
+	go func() {
+		for execErr := range channels.Errors {
+			log.Printf("Caught error: %s\n", execErr.Name)
+			log.Printf("Message: %s\n", execErr.Value)
+			if execErr.Traceback != nil {
+				log.Printf("Traceback:\n%s\n", *execErr.Traceback)
+			}
+		}
+	}()
+
+	result = <-channels.Done
+	if result.Error != nil {
+		log.Printf("Execution completed with error: %s\n", result.Error.Name)
+	}
+
+	// Delete the sandbox
+	log.Println("\n=== Cleaning up ===")
+	if err := sandbox.Delete(ctx); err != nil {
+		log.Fatalf("Failed to delete sandbox: %v", err)
+	}
+	log.Println("✓ Sandbox deleted")
+
+	log.Println("\n✓ All code interpreter examples completed successfully!")
+}
+```
+  </Tab>
+</Tabs>
+
+## Expected Output
+
+```
+Creating sandbox...
+✓ Created sandbox: sandbox-abc123 (ID: abc123)
+
+Hello World!
+Hello World from exec!
+
+============================================================
+Stateful Code Interpreter
+============================================================
+========== Statefulness in the default context ==========
+[STDOUT] Initialized counter = 1
+[STDOUT] Counter after second call = 2
+========== Context isolation ==========
+[STDOUT] Isolated context value: stored in isolated context
+--- Print value from same context ---
+[STDOUT] Value still available: stored in isolated context
+--- Print value from different context ---
+[ERROR] NameError: name 'value' is not defined
+========== Timeout handling ==========
+[STDOUT] Starting long running task...
+Timed out as expected: Code execution timed out after 1 seconds
+```
+
+## Key Concepts
+
+### Basic Code Execution
+
+Run code directly in the sandbox:
+
+<CodeGroup>
+```python Python
+# Run Python code
+response = sandbox.process.code_run('print("Hello")')
+print(response.result)
+
+# Execute OS command
+response = sandbox.process.exec('ls -la', timeout=10)
+print(response.result)
+```
+
+```typescript TypeScript
+// Run code
+const result = await sandbox.process.codeRun('console.log("Hello")')
+console.log(result.result)
+
+// Execute OS command
+const cmdResult = await sandbox.process.executeCommand('ls -la')
+console.log(cmdResult.result)
+```
+
+```go Go
+// Execute command
+result, err := sandbox.Process.ExecuteCommand(ctx, "echo 'Hello'")
+log.Printf("Output: %s\n", result.Result)
+```
+</CodeGroup>
+
+### Execution Sessions
+
+Maintain state across multiple commands:
+
+```typescript
+// Create session
+await sandbox.process.createSession('my-session')
+
+// Execute commands in session
+await sandbox.process.executeSessionCommand('my-session', {
+  command: 'export MY_VAR=hello'
+})
+
+const result = await sandbox.process.executeSessionCommand('my-session', {
+  command: 'echo $MY_VAR'
+})
+console.log(result.stdout) // "hello"
+
+// Delete session
+await sandbox.process.deleteSession('my-session')
+```
+
+### Stateful Code Interpreter
+
+The code interpreter maintains state between executions:
+
+```python
+# First execution - set variable
+result1 = sandbox.code_interpreter.run_code(
+    "counter = 1\nprint(counter)"
+)
+
+# Second execution - variable persists
+result2 = sandbox.code_interpreter.run_code(
+    "counter += 1\nprint(counter)"
+)
+# Output: 2
+```
+
+### Context Isolation
+
+Create isolated execution contexts:
+
+```python
+# Create isolated context
+ctx = sandbox.code_interpreter.create_context()
+
+# Run code in context
+sandbox.code_interpreter.run_code(
+    "secret = 'isolated'",
+    context=ctx
+)
+
+# Variable not available in default context
+sandbox.code_interpreter.run_code(
+    "print(secret)"  # NameError!
+)
+
+# But available in same context
+sandbox.code_interpreter.run_code(
+    "print(secret)",  # Works!
+    context=ctx
+)
+
+# Clean up
+sandbox.code_interpreter.delete_context(ctx)
+```
+
+### Streaming Output
+
+Handle output in real-time:
+
+<CodeGroup>
+```python Python
+def handle_stdout(msg: OutputMessage):
+    print(f"[STDOUT] {msg.output}")
+
+def handle_stderr(msg: OutputMessage):
+    print(f"[STDERR] {msg.output}")
+
+def handle_error(err: ExecutionError):
+    print(f"[ERROR] {err.name}: {err.value}")
+
+sandbox.code_interpreter.run_code(
+    code,
+    on_stdout=handle_stdout,
+    on_stderr=handle_stderr,
+    on_error=handle_error
+)
+```
+
+```typescript TypeScript
+await sandbox.codeInterpreter.runCode(code, {
+  onStdout: (msg) => console.log(`[STDOUT] ${msg.output}`),
+  onStderr: (msg) => console.log(`[STDERR] ${msg.output}`),
+  onError: (err) => console.log(`[ERROR] ${err.name}`)
+})
+```
+
+```go Go
+channels, err := interpreter.RunCode(ctx, code)
+
+go func() {
+    for msg := range channels.Stdout {
+        log.Printf("[STDOUT] %s", msg.Text)
+    }
+}()
+
+go func() {
+    for err := range channels.Errors {
+        log.Printf("[ERROR] %s: %s", err.Name, err.Value)
+    }
+}()
+
+result := <-channels.Done
+```
+</CodeGroup>
+
+### Timeout Handling
+
+Set execution timeouts:
+
+```python
+try:
+    sandbox.code_interpreter.run_code(
+        "import time\ntime.sleep(10)",
+        timeout=2  # seconds
+    )
+except DaytonaTimeoutError:
+    print("Execution timed out")
+```
+
+## Common Patterns
+
+### Data Processing Pipeline
+
+```python
+# Load data
+sandbox.code_interpreter.run_code("""
+import json
+data = [1, 2, 3, 4, 5]
+""")
+
+# Process
+sandbox.code_interpreter.run_code("""
+processed = [x * 2 for x in data]
+""")
+
+# Export
+result = sandbox.code_interpreter.run_code("""
+print(json.dumps(processed))
+""")
+output = json.loads(result.stdout)
+```
+
+### Interactive Sessions
+
+```typescript
+// Create session for user
+const sessionId = `user-${userId}`
+await sandbox.process.createSession(sessionId)
+
+// Execute user commands
+const result = await sandbox.process.executeSessionCommand(sessionId, {
+  command: userInput,
+  runAsync: true
+})
+
+// Stream logs
+await sandbox.process.getSessionCommandLogs(
+  sessionId,
+  result.cmdId,
+  (stdout) => sendToUser(stdout),
+  (stderr) => sendErrorToUser(stderr)
+)
+```
+
+## Best Practices
+
+<Tip>
+**Use contexts for isolation**: When running untrusted code or multiple independent executions, use separate contexts to prevent interference.
+</Tip>
+
+<Warning>
+**Always set timeouts**: Protect against infinite loops and long-running operations by setting appropriate timeouts.
+</Warning>
+
+<Note>
+**Clean up resources**: Delete contexts and sessions when done to free up resources in the sandbox.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="File Operations" icon="file" href="/examples/file-operations">
+    Work with files in sandboxes
+  </Card>
+  <Card title="Auto Lifecycle" icon="clock" href="/examples/auto-lifecycle">
+    Configure automatic policies
+  </Card>
+</CardGroup>

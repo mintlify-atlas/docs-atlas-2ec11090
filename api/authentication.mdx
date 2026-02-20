@@ -1,0 +1,258 @@
+---
+title: 'Authentication'
+description: 'Authenticate your API requests using API keys or OAuth 2.0'
+---
+
+# API Authentication
+
+Daytona API supports two authentication methods: **API Key authentication** (recommended for most use cases) and **OAuth 2.0 / OpenID Connect** (for user-facing applications).
+
+## API Key Authentication
+
+API keys provide the simplest way to authenticate programmatic access to the Daytona API.
+
+### Creating an API Key
+
+Create an API key using the Daytona dashboard or CLI:
+
+```bash
+daytona api-key create "My API Key" \
+  --permissions write:sandboxes,read:snapshots \
+  --expires-at 2025-12-31T23:59:59Z
+```
+
+Or via the API:
+
+```bash
+curl -X POST https://api.daytona.io/api-keys \
+  -H "Authorization: Bearer YOUR_EXISTING_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My API Key",
+    "permissions": ["write:sandboxes", "read:snapshots"],
+    "expiresAt": "2025-12-31T23:59:59Z"
+  }'
+```
+
+### Using API Keys
+
+Include your API key in the `Authorization` header using the Bearer scheme:
+
+```bash
+curl -X GET https://api.daytona.io/sandbox \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+<Warning>
+  **Keep your API keys secure**. Never commit API keys to version control or expose them in client-side code.
+</Warning>
+
+### API Key Headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token containing your API key
+  
+  Format: `Bearer YOUR_API_KEY`
+</ParamField>
+
+<ParamField header="X-Daytona-Organization-ID" type="string">
+  Organization ID for multi-org API keys. Required when your API key has access to multiple organizations.
+</ParamField>
+
+### Example: Creating a Sandbox
+
+```python
+import requests
+
+url = "https://api.daytona.io/sandbox"
+headers = {
+    "Authorization": "Bearer dta_1234567890abcdef",
+    "Content-Type": "application/json"
+}
+payload = {
+    "alias": "python-sandbox",
+    "snapshot": "python:3.11"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+### API Key Permissions
+
+API keys support granular permissions for organization resources:
+
+- `read:sandboxes` - List and view sandboxes
+- `write:sandboxes` - Create, update, and delete sandboxes
+- `read:snapshots` - List and view snapshots
+- `write:snapshots` - Create and delete snapshots
+- `read:volumes` - List and view volumes
+- `write:volumes` - Create and delete volumes
+- `read:registries` - View registry configurations
+- `write:registries` - Manage registry configurations
+- `admin:organization` - Full organization administration
+
+### Managing API Keys
+
+#### List API Keys
+
+```bash
+curl -X GET https://api.daytona.io/api-keys \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+#### Get Current API Key Details
+
+```bash
+curl -X GET https://api.daytona.io/api-keys/current \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Delete API Key
+
+```bash
+curl -X DELETE https://api.daytona.io/api-keys/my-key-name \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### API Key Expiration
+
+API keys can have optional expiration dates. When an API key expires:
+
+- All requests using the key will receive a `401 Unauthorized` response
+- The key is automatically marked as inactive
+- You must create a new API key to restore access
+
+**Best practices:**
+- Set expiration dates for temporary access
+- Rotate API keys regularly for production use
+- Use shorter expiration periods for development/testing
+
+## OAuth 2.0 / OpenID Connect
+
+Use OAuth 2.0 for user-facing applications that need to act on behalf of authenticated users.
+
+### OpenID Connect Configuration
+
+Daytona's OpenID Connect endpoint is available at:
+
+```
+GET /.well-known/openid-configuration
+```
+
+Response includes:
+
+```json
+{
+  "issuer": "https://api.daytona.io",
+  "authorization_endpoint": "https://api.daytona.io/oauth/authorize",
+  "token_endpoint": "https://api.daytona.io/oauth/token",
+  "userinfo_endpoint": "https://api.daytona.io/oauth/userinfo",
+  "jwks_uri": "https://api.daytona.io/.well-known/jwks.json"
+}
+```
+
+### OAuth Scopes
+
+Daytona supports the following OAuth scopes:
+
+- `openid` - Required for OpenID Connect
+- `profile` - Access to user profile information
+- `email` - Access to user email address
+
+### Using JWT Tokens
+
+After completing the OAuth flow, use the JWT token in the Authorization header:
+
+```bash
+curl -X GET https://api.daytona.io/users/me \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Multi-Organization Access
+
+When a JWT token has access to multiple organizations, specify which organization to use:
+
+```bash
+curl -X GET https://api.daytona.io/sandbox \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "X-Daytona-Organization-ID: org_abc123"
+```
+
+## Authentication Errors
+
+### 401 Unauthorized
+
+Your API key is invalid, expired, or missing.
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "error": "Invalid or expired API key"
+}
+```
+
+**Solutions:**
+- Verify your API key is correct
+- Check if the API key has expired
+- Ensure the Authorization header is properly formatted
+
+### 403 Forbidden
+
+Your API key lacks required permissions.
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden",
+  "error": "Insufficient permissions"
+}
+```
+
+**Solutions:**
+- Review required permissions for the endpoint
+- Create a new API key with appropriate permissions
+- Contact your organization administrator
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Secure Storage">
+    - Store API keys in environment variables or secret management systems
+    - Never hardcode API keys in source code
+    - Use different API keys for development and production
+    - Rotate API keys regularly
+  </Accordion>
+
+  <Accordion title="Access Control">
+    - Grant minimum required permissions
+    - Create separate API keys for different applications
+    - Set expiration dates appropriate for use case
+    - Monitor API key usage and audit logs
+  </Accordion>
+
+  <Accordion title="Transmission Security">
+    - Always use HTTPS for API requests
+    - Avoid logging API keys in application logs
+    - Don't send API keys as query parameters
+    - Revoke compromised keys immediately
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Rate Limits" icon="gauge" href="/api/rate-limits">
+    Understand API rate limiting
+  </Card>
+  <Card title="Create Sandbox" icon="box" href="/api/sandboxes/create">
+    Make your first API request
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/errors">
+    Handle authentication errors
+  </Card>
+  <Card title="SDKs" icon="code" href="/sdks/overview">
+    Use official SDK libraries
+  </Card>
+</CardGroup>

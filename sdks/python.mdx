@@ -1,0 +1,630 @@
+---
+title: Python SDK
+description: Complete guide to the Daytona Python SDK for managing sandboxes and executing code
+---
+
+The Daytona Python SDK provides a simple interface for interacting with Daytona Sandboxes, enabling sandbox management, code execution, file operations, and more.
+
+## Installation
+
+<CodeGroup>
+```bash pip
+pip install daytona
+```
+
+```bash poetry
+poetry add daytona
+```
+
+```bash uv
+uv pip install daytona
+```
+</CodeGroup>
+
+## Quick Start
+
+```python
+from daytona import Daytona
+
+# Initialize using environment variables
+daytona = Daytona()
+
+# Create a sandbox
+sandbox = daytona.create()
+
+# Run code in the sandbox
+response = sandbox.process.code_run('print("Hello World!")')
+print(response.result)
+
+# Clean up when done
+daytona.delete(sandbox)
+```
+
+## Configuration
+
+### Using Environment Variables
+
+Set the following environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_API_URL="https://app.daytona.io/api"  # Optional
+export DAYTONA_TARGET="us"  # Optional
+```
+
+Then initialize the client:
+
+```python
+from daytona import Daytona
+
+daytona = Daytona()
+```
+
+### Using Configuration Object
+
+```python
+from daytona import Daytona, DaytonaConfig
+
+config = DaytonaConfig(
+    api_key="your-api-key",
+    api_url="https://app.daytona.io/api",
+    target="us"
+)
+daytona = Daytona(config)
+```
+
+## Sandbox Management
+
+### Creating Sandboxes
+
+#### Basic Sandbox Creation
+
+```python
+from daytona import Daytona
+
+daytona = Daytona()
+sandbox = daytona.create()
+
+print(f"Created sandbox: {sandbox.id}")
+print(f"State: {sandbox.state}")
+```
+
+#### Customized Sandbox Creation
+
+```python
+from daytona import Daytona, CreateSandboxFromSnapshotParams
+
+daytona = Daytona()
+
+params = CreateSandboxFromSnapshotParams(
+    language="python",
+    env_vars={"PYTHON_ENV": "development"},
+    auto_stop_interval=60,  # Auto-stop after 1 hour of inactivity
+    auto_archive_interval=60,  # Auto-archive after 1 hour of being stopped
+    auto_delete_interval=120  # Auto-delete after 2 hours of being stopped
+)
+
+sandbox = daytona.create(params)
+```
+
+### Listing Sandboxes
+
+```python
+# List all sandboxes
+result = daytona.list()
+print(f"Total sandboxes: {result.total}")
+
+for sandbox in result.items:
+    print(f"ID: {sandbox.id}, State: {sandbox.state}")
+
+# List with pagination
+result = daytona.list(page=1, limit=10)
+```
+
+### Getting a Sandbox
+
+```python
+# Get by ID
+sandbox = daytona.get("sandbox-id")
+
+# Get by name
+sandbox = daytona.get("sandbox-name")
+```
+
+### Sandbox Lifecycle
+
+```python
+# Stop a sandbox
+daytona.stop(sandbox)
+print(f"Sandbox state: {sandbox.state}")  # 'stopped'
+
+# Start a sandbox
+daytona.start(sandbox)
+print(f"Sandbox state: {sandbox.state}")  # 'started'
+
+# Delete a sandbox
+daytona.delete(sandbox)
+```
+
+### Setting Labels
+
+```python
+sandbox.set_labels({
+    "environment": "development",
+    "project": "my-app",
+    "public": "true"
+})
+
+print(f"Labels: {sandbox.labels}")
+```
+
+## Code Execution
+
+### Running Python Code
+
+```python
+# Simple code execution
+response = sandbox.process.code_run('print("Hello, World!")')
+print(response.result)
+
+# Multi-line code
+code = '''
+x = 10
+y = 20
+print(f"Sum: {x + y}")
+'''
+
+response = sandbox.process.code_run(code)
+print(response.result)  # Output: Sum: 30
+```
+
+### Executing Shell Commands
+
+```python
+# Execute a command
+response = sandbox.process.exec('echo "Hello, World!"')
+if response.exit_code == 0:
+    print(response.result)
+else:
+    print(f"Error: {response.result}")
+
+# Execute with working directory and timeout
+response = sandbox.process.exec(
+    'ls -la',
+    cwd='/home/daytona',
+    timeout=10
+)
+print(response.result)
+```
+
+### Code Interpreter (Stateful Execution)
+
+```python
+# Create a stateful code interpreter session
+interpreter = sandbox.code_interpreter
+
+# Execute code with real-time streaming
+channels = interpreter.run_code('''
+import time
+for i in range(5):
+    print(f"Step {i+1}")
+    time.sleep(0.5)
+''')
+
+# Read real-time output
+for msg in channels.stdout:
+    print(f"[STDOUT] {msg.text}")
+
+# Wait for completion
+result = next(channels.done)
+print(f"Final output: {result.stdout}")
+```
+
+## File Operations
+
+### Uploading Files
+
+```python
+# Upload a single file from bytes
+content = b'Hello, World!'
+sandbox.fs.upload_file(content, '/tmp/hello.txt')
+
+# Upload a file from local path
+from daytona import FileUpload
+
+sandbox.fs.upload_files([
+    FileUpload(source='local-file.txt', destination='/tmp/remote-file.txt')
+])
+
+# Upload multiple files
+sandbox.fs.upload_files([
+    FileUpload(source='file1.txt', destination='/tmp/file1.txt'),
+    FileUpload(source=b'content', destination='/tmp/file2.txt')
+])
+```
+
+### Downloading Files
+
+```python
+# Download a single file to memory
+content = sandbox.fs.download_file('/tmp/hello.txt')
+print(content.decode('utf-8'))
+
+# Download multiple files
+from daytona import FileDownloadRequest
+
+results = sandbox.fs.download_files([
+    FileDownloadRequest(source='/tmp/file1.txt', destination='local-file1.txt'),
+    FileDownloadRequest(source='/tmp/file2.txt')  # To memory
+])
+
+for result in results:
+    if result.error:
+        print(f"Error: {result.error}")
+    elif isinstance(result.result, str):
+        print(f"Downloaded to: {result.result}")
+    else:
+        print(f"Downloaded to memory: {len(result.result)} bytes")
+```
+
+### File System Operations
+
+```python
+# List files in a directory
+files = sandbox.fs.list_files('/tmp')
+for file in files:
+    print(f"{file.name}: {file.size} bytes")
+
+# Create a folder
+sandbox.fs.create_folder('/tmp/new-folder', mode='755')
+
+# Search for files
+matches = sandbox.fs.search_files('/tmp', '*.txt')
+print(f"Found {len(matches.files)} files")
+for file in matches.files:
+    print(file)
+
+# Replace content in files
+sandbox.fs.replace_in_files(
+    ['/tmp/config.json'],
+    '"debug": true',
+    '"debug": false'
+)
+```
+
+## Git Operations
+
+### Cloning Repositories
+
+```python
+# Clone a public repository
+sandbox.git.clone(
+    'https://github.com/daytonaio/daytona.git',
+    '/tmp/daytona'
+)
+
+# Clone with authentication
+sandbox.git.clone(
+    'https://github.com/private/repo.git',
+    '/tmp/repo',
+    username='user',
+    password='token'
+)
+
+# Clone a specific branch
+sandbox.git.clone(
+    'https://github.com/example/repo.git',
+    '/tmp/repo',
+    branch='develop'
+)
+```
+
+### Git Status and Branches
+
+```python
+# Get repository status
+status = sandbox.git.status('/tmp/repo')
+print(f"Current branch: {status.current_branch}")
+print(f"Files changed: {len(status.file_status)}")
+
+# List branches
+branches = sandbox.git.branches('/tmp/repo')
+for branch in branches:
+    print(f"Branch: {branch}")
+```
+
+### Committing Changes
+
+```python
+# Add files
+sandbox.git.add('/tmp/repo', ['file1.txt', 'file2.txt'])
+
+# Commit changes
+sandbox.git.commit(
+    '/tmp/repo',
+    'Add new features',
+    'Your Name',
+    'your.email@example.com'
+)
+
+# Push changes
+sandbox.git.push(
+    '/tmp/repo',
+    username='user',
+    password='token'
+)
+```
+
+## Language Server Protocol
+
+### Starting an LSP Server
+
+```python
+# Create and start a TypeScript LSP server
+lsp = sandbox.create_lsp_server('typescript', '/workspace/project')
+lsp.start()
+
+# Notify LSP about opened file
+lsp.did_open('/workspace/project/src/index.ts')
+```
+
+### Code Intelligence
+
+```python
+# Get document symbols
+symbols = lsp.document_symbols('/workspace/project/src/index.ts')
+for symbol in symbols:
+    print(f"{symbol.name} ({symbol.kind})")
+
+# Get completions
+completions = lsp.completions(
+    '/workspace/project/src/index.ts',
+    {"line": 10, "character": 15}
+)
+for item in completions:
+    print(f"{item.label}: {item.detail}")
+
+# Go to definition
+definition = lsp.definition(
+    '/workspace/project/src/index.ts',
+    {"line": 5, "character": 10}
+)
+print(f"Definition at: {definition}")
+```
+
+### Stopping LSP Server
+
+```python
+# Stop the LSP server
+lsp.stop()
+```
+
+## Async Support
+
+The Python SDK provides full async support:
+
+```python
+import asyncio
+from daytona import AsyncDaytona
+
+async def main():
+    # Initialize async client
+    daytona = AsyncDaytona()
+    
+    # Create sandbox asynchronously
+    sandbox = await daytona.create()
+    
+    # Execute code
+    response = await sandbox.process.code_run('print("Async Hello!")')
+    print(response.result)
+    
+    # Cleanup
+    await daytona.delete(sandbox)
+
+# Run the async function
+asyncio.run(main())
+```
+
+## Error Handling
+
+```python
+from daytona import (
+    Daytona,
+    DaytonaError,
+    DaytonaNotFoundError,
+    DaytonaRateLimitError,
+    DaytonaTimeoutError
+)
+
+try:
+    daytona = Daytona()
+    sandbox = daytona.create()
+    
+    # Execute code that might fail
+    response = sandbox.process.exec('invalid-command')
+    if response.exit_code != 0:
+        print(f"Command failed: {response.result}")
+    
+except DaytonaNotFoundError as e:
+    print(f"Resource not found: {e}")
+except DaytonaRateLimitError as e:
+    print(f"Rate limit exceeded: {e}")
+except DaytonaTimeoutError as e:
+    print(f"Operation timed out: {e}")
+except DaytonaError as e:
+    print(f"Daytona error: {e}")
+finally:
+    # Always cleanup
+    if 'sandbox' in locals():
+        daytona.delete(sandbox)
+```
+
+## Complete Example
+
+```python
+from daytona import Daytona, CreateSandboxFromSnapshotParams
+
+def main():
+    # Initialize client
+    daytona = Daytona()
+    
+    # Create a sandbox with custom configuration
+    params = CreateSandboxFromSnapshotParams(
+        language="python",
+        env_vars={"ENV": "production"},
+        labels={"project": "data-analysis"}
+    )
+    
+    sandbox = daytona.create(params)
+    print(f"Created sandbox: {sandbox.id}")
+    
+    try:
+        # Upload a Python script
+        script = b'''
+import pandas as pd
+import json
+
+data = {'name': ['Alice', 'Bob'], 'age': [25, 30]}
+df = pd.DataFrame(data)
+print(json.dumps(df.to_dict()))
+'''
+        sandbox.fs.upload_file(script, '/tmp/analyze.py')
+        
+        # Install dependencies
+        install_result = sandbox.process.exec('pip install pandas')
+        if install_result.exit_code != 0:
+            print(f"Failed to install pandas: {install_result.result}")
+            return
+        
+        # Run the script
+        result = sandbox.process.exec('python /tmp/analyze.py')
+        print(f"Analysis result: {result.result}")
+        
+    finally:
+        # Cleanup
+        daytona.delete(sandbox)
+        print("Sandbox deleted")
+
+if __name__ == "__main__":
+    main()
+```
+
+## API Reference
+
+### Daytona Class
+
+#### Methods
+
+- `create(params=None)` - Create a new sandbox
+- `get(sandbox_id_or_name)` - Get a sandbox by ID or name
+- `list(labels=None, page=None, limit=None)` - List sandboxes with pagination
+- `delete(sandbox)` - Delete a sandbox
+- `start(sandbox)` - Start a stopped sandbox
+- `stop(sandbox)` - Stop a running sandbox
+
+### Sandbox Class
+
+#### Properties
+
+- `fs` - FileSystem operations interface
+- `git` - Git operations interface
+- `process` - Process execution interface
+- `code_interpreter` - Code interpreter interface
+- `id` - Sandbox ID
+- `state` - Current state
+- `labels` - Custom labels
+- `env` - Environment variables
+
+#### Methods
+
+- `set_labels(labels)` - Set custom labels
+- `get_preview_link(port)` - Get port preview URL
+
+### Process Class
+
+#### Methods
+
+- `exec(command, cwd=None, timeout=None)` - Execute a shell command
+- `code_run(code, params=None)` - Execute code directly
+
+### FileSystem Class
+
+#### Methods
+
+- `upload_file(content, path)` - Upload a file
+- `upload_files(files)` - Upload multiple files
+- `download_file(path)` - Download a file
+- `download_files(requests)` - Download multiple files
+- `list_files(path)` - List files in a directory
+- `create_folder(path, mode='755')` - Create a folder
+- `search_files(root, pattern)` - Search for files
+- `replace_in_files(files, old, new)` - Replace content in files
+
+### Git Class
+
+#### Methods
+
+- `clone(url, path, branch=None, username=None, password=None)` - Clone a repository
+- `status(path)` - Get repository status
+- `branches(path)` - List branches
+- `add(path, files)` - Add files to staging
+- `commit(path, message, author, email)` - Commit changes
+- `push(path, username=None, password=None)` - Push changes
+
+## Best Practices
+
+### Always Use Context Managers
+
+```python
+from daytona import Daytona
+
+def process_data():
+    daytona = Daytona()
+    sandbox = daytona.create()
+    
+    try:
+        # Do work with sandbox
+        result = sandbox.process.code_run('print("Hello")')
+        return result
+    finally:
+        # Always cleanup
+        daytona.delete(sandbox)
+```
+
+### Check Exit Codes
+
+```python
+response = sandbox.process.exec('some-command')
+if response.exit_code != 0:
+    print(f"Command failed: {response.result}")
+    # Handle error
+else:
+    print(f"Success: {response.result}")
+```
+
+### Use Type Hints
+
+```python
+from daytona import Daytona, Sandbox, CreateSandboxFromSnapshotParams
+
+def create_python_sandbox(daytona: Daytona) -> Sandbox:
+    params = CreateSandboxFromSnapshotParams(language="python")
+    return daytona.create(params)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="SDK Overview" icon="book" href="/sdks/overview">
+    Compare all available SDKs
+  </Card>
+  <Card title="API Reference" icon="code" href="/tools/api">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="flask" href="https://github.com/daytonaio/daytona/tree/main/examples/python">
+    Browse Python examples on GitHub
+  </Card>
+  <Card title="TypeScript SDK" icon="js" href="/sdks/typescript">
+    Learn about the TypeScript SDK
+  </Card>
+</CardGroup>

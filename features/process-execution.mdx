@@ -1,0 +1,308 @@
+---
+title: Process Execution
+description: Execute code and commands in Daytona sandboxes
+---
+
+The Process API provides powerful capabilities for executing code and running shell commands within a sandbox environment.
+
+## Overview
+
+Daytona supports two primary execution modes:
+- **Code execution** - Run code directly using language-specific runtimes
+- **Command execution** - Execute shell commands with full control over the environment
+
+Both modes support synchronous and asynchronous execution, with comprehensive output handling.
+
+## Code Execution
+
+### Basic Code Running
+
+Execute code in the sandbox using the appropriate language runtime:
+
+```typescript
+const response = await sandbox.process.codeRun(`
+  const x = 10;
+  const y = 20;
+  console.log(\`Sum: \${x + y}\`);
+`);
+
+console.log(response.artifacts.stdout); // Output: Sum: 30
+console.log(response.exitCode); // 0 for success
+```
+
+### Code Execution with Parameters
+
+Pass environment variables and command-line arguments:
+
+```typescript
+const response = await sandbox.process.codeRun(
+  `
+  console.log(process.env.MY_VAR);
+  console.log(process.argv);
+  `,
+  {
+    env: { MY_VAR: 'Hello World' },
+    argv: ['arg1', 'arg2']
+  },
+  30 // timeout in seconds
+);
+```
+
+<ParamField path="code" type="string" required>
+  Code to execute in the sandbox
+</ParamField>
+
+<ParamField path="params" type="CodeRunParams">
+  Execution parameters
+  
+  <Expandable title="properties">
+    <ParamField path="argv" type="string[]">
+      Command line arguments
+    </ParamField>
+    
+    <ParamField path="env" type="Record<string, string>">
+      Environment variables
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Maximum execution time in seconds (0 = no timeout)
+</ParamField>
+
+### Execution Artifacts
+
+The response includes parsed artifacts from execution:
+
+```typescript
+interface ExecuteResponse {
+  exitCode: number;           // Exit status code
+  result: string;            // Standard output
+  artifacts?: {
+    stdout: string;          // Same as result
+    charts?: Chart[];        // Matplotlib chart metadata (Python)
+  };
+}
+```
+
+## Command Execution
+
+### Running Shell Commands
+
+Execute shell commands with full environment control:
+
+```typescript
+const result = await sandbox.process.executeCommand(
+  'echo "Hello World"'
+);
+
+console.log(result.artifacts.stdout); // Hello World
+console.log(result.exitCode);         // 0
+```
+
+### Commands with Working Directory
+
+Specify the working directory for command execution:
+
+```typescript
+const result = await sandbox.process.executeCommand(
+  'ls -la',
+  '/workspace/src' // working directory
+);
+```
+
+### Commands with Environment Variables
+
+```typescript
+const result = await sandbox.process.executeCommand(
+  'echo $MY_VAR',
+  undefined,                    // use default working directory
+  { MY_VAR: 'Custom Value' }    // environment variables
+);
+```
+
+### Commands with Timeout
+
+```typescript
+const result = await sandbox.process.executeCommand(
+  'sleep 10',
+  undefined,  // working directory
+  undefined,  // environment variables
+  5           // timeout in seconds
+);
+```
+
+<ParamField path="command" type="string" required>
+  Shell command to execute
+</ParamField>
+
+<ParamField path="cwd" type="string">
+  Working directory for command execution. Defaults to sandbox working directory.
+</ParamField>
+
+<ParamField path="env" type="Record<string, string>">
+  Environment variables to set for the command
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Maximum time in seconds to wait (0 = wait indefinitely)
+</ParamField>
+
+## Session-Based Execution
+
+Sessions maintain state between commands, ideal for multi-step workflows.
+
+### Creating a Session
+
+```typescript
+const sessionId = 'my-session';
+await sandbox.process.createSession(sessionId);
+```
+
+### Executing Commands in a Session
+
+Commands in a session share environment and context:
+
+```typescript
+// Set an environment variable
+await sandbox.process.executeSessionCommand(sessionId, {
+  command: 'export FOO=BAR'
+});
+
+// Use it in a subsequent command
+const response = await sandbox.process.executeSessionCommand(sessionId, {
+  command: 'echo $FOO'
+});
+
+console.log(response.stdout); // BAR
+```
+
+### Asynchronous Session Commands
+
+Run long-running commands without blocking:
+
+```typescript
+const response = await sandbox.process.executeSessionCommand(sessionId, {
+  command: 'npm install && npm run build',
+  runAsync: true
+});
+
+const commandId = response.cmdId;
+
+// Check command status
+const cmd = await sandbox.process.getSessionCommand(sessionId, commandId);
+console.log(cmd.exitCode); // undefined while running
+```
+
+### Streaming Session Logs
+
+Stream output from asynchronous commands in real-time:
+
+```typescript
+await sandbox.process.getSessionCommandLogs(
+  sessionId,
+  commandId,
+  (stdout) => console.log('[STDOUT]:', stdout),
+  (stderr) => console.log('[STDERR]:', stderr)
+);
+```
+
+### Sending Input to Session Commands
+
+Send input to interactive commands:
+
+```typescript
+const response = await sandbox.process.executeSessionCommand(sessionId, {
+  command: 'read name && echo "Hello, $name"',
+  runAsync: true
+});
+
+// Send input after a delay
+await new Promise(resolve => setTimeout(resolve, 1000));
+await sandbox.process.sendSessionCommandInput(
+  sessionId,
+  response.cmdId,
+  'Alice\n'
+);
+```
+
+### Managing Sessions
+
+```typescript
+// List all active sessions
+const sessions = await sandbox.process.listSessions();
+
+// Get session details
+const session = await sandbox.process.getSession(sessionId);
+console.log(session.commands); // Array of executed commands
+
+// Delete a session
+await sandbox.process.deleteSession(sessionId);
+```
+
+<ParamField path="sessionId" type="string" required>
+  Unique identifier for the session
+</ParamField>
+
+<ParamField path="request" type="SessionExecuteRequest" required>
+  Command execution request
+  
+  <Expandable title="properties">
+    <ParamField path="command" type="string" required>
+      The command to execute
+    </ParamField>
+    
+    <ParamField path="runAsync" type="boolean">
+      Execute asynchronously without waiting for completion
+    </ParamField>
+    
+    <ParamField path="suppressInputEcho" type="boolean">
+      Suppress echoing of input. Default is false.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Error Handling
+
+Handle execution failures gracefully:
+
+```typescript
+const result = await sandbox.process.executeCommand('invalid-command');
+
+if (result.exitCode !== 0) {
+  console.error('Command failed with exit code:', result.exitCode);
+  console.error('Output:', result.artifacts.stdout);
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use sessions for related commands">
+    When executing multiple related commands, use sessions to maintain environment state and avoid redundant setup.
+  </Accordion>
+
+  <Accordion title="Set appropriate timeouts">
+    Always set timeouts for potentially long-running commands to prevent indefinite blocking.
+  </Accordion>
+
+  <Accordion title="Stream logs for long operations">
+    For long-running operations, use async execution with log streaming to provide real-time feedback.
+  </Accordion>
+
+  <Accordion title="Clean up sessions">
+    Delete sessions when finished to free up sandbox resources.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="PTY Sessions" icon="terminal" href="/features/pty-sessions">
+    Interactive terminal sessions with full TTY support
+  </Card>
+  
+  <Card title="Code Interpreter" icon="code" href="/features/code-interpreter">
+    Advanced Python code execution with context isolation
+  </Card>
+</CardGroup>

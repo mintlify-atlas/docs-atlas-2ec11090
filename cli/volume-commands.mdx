@@ -1,0 +1,345 @@
+---
+title: Volume Commands
+description: Complete reference for Daytona volume management commands
+---
+
+## Overview
+
+Volume commands allow you to create and manage persistent storage volumes that can be mounted to sandboxes. Volumes persist data independently of sandbox lifecycle, making them ideal for databases, configuration files, and any data that needs to survive sandbox restarts or deletions.
+
+## daytona volume create
+
+Create a new persistent volume.
+
+### Usage
+
+```bash
+daytona volume create [NAME] [flags]
+```
+
+### Flags
+
+- `--size`, `-s` - Size of the volume in GB (default: 10)
+
+### Examples
+
+```bash
+# Create a volume with default size (10GB)
+daytona volume create my-data
+
+# Create a volume with custom size
+daytona volume create large-data --size 100
+
+# Create a volume with specific size
+daytona volume create postgres-data -s 50
+```
+
+### Output
+
+```
+Volume my-data successfully created
+```
+
+---
+
+## daytona volume list
+
+List all volumes in your organization.
+
+### Usage
+
+```bash
+daytona volume list [flags]
+```
+
+### Flags
+
+- `--format` - Output format (json, yaml)
+
+### Examples
+
+```bash
+# List all volumes
+daytona volume list
+
+# Get volumes as JSON
+daytona volume list --format json
+
+# Get volumes as YAML
+daytona volume list --format yaml
+```
+
+### Output
+
+Displays a table with:
+- Volume ID
+- Name
+- Size
+- Created date
+- Mount status
+
+---
+
+## daytona volume get
+
+Get detailed information about a specific volume.
+
+### Usage
+
+```bash
+daytona volume get [VOLUME_ID]
+```
+
+### Flags
+
+- `--format` - Output format (json, yaml)
+
+### Examples
+
+```bash
+# Get volume details
+daytona volume get my-data
+
+# Get volume details by ID
+daytona volume get 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+
+# Get volume details as JSON
+daytona volume get my-data --format json
+```
+
+### Output
+
+Displays detailed information including:
+- Volume ID
+- Name
+- Size
+- Region
+- State
+- Created date
+- Mounted sandboxes (if any)
+
+---
+
+## daytona volume delete
+
+Delete a volume.
+
+### Usage
+
+```bash
+daytona volume delete [VOLUME_ID]
+```
+
+### Examples
+
+```bash
+# Delete a volume by name
+daytona volume delete my-data
+
+# Delete a volume by ID
+daytona volume delete 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+```
+
+### Output
+
+```
+Volume my-data deleted
+```
+
+### Notes
+
+- A volume cannot be deleted while it's mounted to a running sandbox
+- All data in the volume will be permanently lost
+
+---
+
+## Using Volumes with Sandboxes
+
+### Mount a Volume During Sandbox Creation
+
+Volumes are mounted when creating a sandbox using the `--volume` flag:
+
+```bash
+# Mount a single volume
+daytona create --snapshot ubuntu --volume my-data:/data
+
+# Mount multiple volumes
+daytona create --snapshot ubuntu \
+  --volume postgres-data:/var/lib/postgresql/data \
+  --volume app-config:/etc/myapp
+```
+
+The format is: `VOLUME_NAME:MOUNT_PATH`
+
+---
+
+## Common Patterns
+
+### Create Volume and Mount to Sandbox
+
+```bash
+# Create a volume for database data
+daytona volume create postgres-data --size 50
+
+# Create sandbox with volume mounted
+daytona create --snapshot postgres \
+  --name db-sandbox \
+  --volume postgres-data:/var/lib/postgresql/data
+```
+
+### Share Data Between Sandboxes
+
+```bash
+# Create a shared data volume
+daytona volume create shared-data --size 20
+
+# Mount to first sandbox
+daytona create --snapshot ubuntu \
+  --name sandbox-1 \
+  --volume shared-data:/shared
+
+# Mount the same volume to second sandbox
+daytona create --snapshot ubuntu \
+  --name sandbox-2 \
+  --volume shared-data:/shared
+```
+
+### Manage Application Configuration
+
+```bash
+# Create volume for configuration
+daytona volume create app-config --size 1
+
+# Mount to sandbox
+daytona create --snapshot node \
+  --name web-app \
+  --volume app-config:/app/config
+
+# SSH in and configure
+daytona ssh web-app
+# (in sandbox) echo "key=value" > /app/config/settings.conf
+
+# Configuration persists across sandbox restarts
+daytona stop web-app
+daytona start web-app
+```
+
+### Database Persistence
+
+```bash
+# Create volume for MySQL data
+daytona volume create mysql-data --size 100
+
+# Create MySQL sandbox with persistent storage
+daytona create --snapshot mysql \
+  --name mysql-server \
+  --volume mysql-data:/var/lib/mysql \
+  --env MYSQL_ROOT_PASSWORD=secret
+
+# Database data persists even if sandbox is deleted and recreated
+daytona delete mysql-server
+daytona create --snapshot mysql \
+  --name mysql-server \
+  --volume mysql-data:/var/lib/mysql \
+  --env MYSQL_ROOT_PASSWORD=secret
+```
+
+### Development Workspace Persistence
+
+```bash
+# Create volume for workspace
+daytona volume create workspace --size 50
+
+# Create development sandbox
+daytona create --snapshot ubuntu \
+  --name dev-env \
+  --volume workspace:/workspace
+
+# Work in the sandbox
+daytona ssh dev-env
+# (in sandbox) cd /workspace && git clone https://github.com/user/repo
+
+# Workspace persists across sessions
+```
+
+### List Volumes and Clean Up
+
+```bash
+# List all volumes to see what's available
+daytona volume list
+
+# Get details about specific volume
+daytona volume get old-volume
+
+# Delete unused volumes
+daytona volume delete old-volume
+```
+
+---
+
+## Volume Best Practices
+
+### Size Planning
+
+- Start with smaller sizes and increase as needed
+- Monitor volume usage to right-size your volumes
+- Consider the type of data being stored (logs, databases, code, etc.)
+
+```bash
+# Small volumes for config/logs
+daytona volume create app-config --size 5
+
+# Medium volumes for code/workspace
+daytona volume create workspace --size 50
+
+# Large volumes for databases
+daytona volume create database --size 200
+```
+
+### Naming Conventions
+
+Use descriptive names that indicate the purpose:
+
+```bash
+daytona volume create postgres-prod-data
+daytona volume create redis-cache-data
+daytona volume create app-logs
+daytona volume create shared-workspace
+```
+
+### Mount Paths
+
+Use standard mount paths for common applications:
+
+```bash
+# PostgreSQL
+--volume postgres-data:/var/lib/postgresql/data
+
+# MySQL
+--volume mysql-data:/var/lib/mysql
+
+# MongoDB
+--volume mongo-data:/data/db
+
+# Redis
+--volume redis-data:/data
+
+# Application data
+--volume app-data:/app/data
+```
+
+### Backup Strategy
+
+While volumes are persistent, always maintain backups:
+
+```bash
+# Mount volume to sandbox
+daytona create --snapshot ubuntu \
+  --name backup-sandbox \
+  --volume important-data:/data
+
+# SSH in and create backup
+daytona ssh backup-sandbox
+# (in sandbox) tar -czf /tmp/backup.tar.gz /data
+# (in sandbox) scp /tmp/backup.tar.gz user@backup-server:/backups/
+```

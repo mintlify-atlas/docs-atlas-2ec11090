@@ -1,0 +1,64 @@
+---
+title: 'List Snapshots'
+openapi: 'GET /snapshots'
+---
+
+Retrieve a paginated list of all snapshots in your organization.
+
+## Description
+
+This endpoint returns all snapshots with support for pagination, filtering, and sorting. You can filter snapshots by name and sort by various fields including creation date and last used date.
+
+## Query Parameters
+
+### Pagination
+
+- `page` - Page number of the results (default: 1, minimum: 1)
+- `limit` - Number of results per page (default: 100, minimum: 1, maximum: 200)
+
+### Filtering
+
+- `name` - Filter by partial name match (e.g., `abc123`)
+
+### Sorting
+
+- `sort` - Field to sort by (default: `lastUsedAt`)
+  - Options: `name`, `state`, `lastUsedAt`, `createdAt`
+- `order` - Direction to sort by (default: `desc`)
+  - Options: `asc`, `desc`
+
+## Example Request
+
+```bash
+curl -X GET "https://api.daytona.io/snapshots?page=1&limit=10&sort=createdAt&order=desc" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example with Filtering
+
+```bash
+curl -X GET "https://api.daytona.io/snapshots?name=ubuntu&sort=name&order=asc" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Response
+
+Returns a paginated list containing:
+
+- `items` - Array of snapshot objects
+- `page` - Current page number
+- `total` - Total number of snapshots
+- `totalPages` - Total number of pages
+
+Each snapshot object includes:
+
+- `id` - Snapshot ID
+- `name` - Snapshot name
+- `imageName` - Image name
+- `state` - Current state (`building`, `pending`, `pulling`, `active`, `inactive`, `error`, `build_failed`, `removing`)
+- `cpu`, `gpu`, `mem`, `disk` - Resource allocation
+- `general` - Whether the snapshot is general
+- `regionIds` - IDs of regions where the snapshot is available
+- `createdAt`, `updatedAt`, `lastUsedAt` - Timestamps
+- `size` - Snapshot size
+- `ref` - Snapshot reference (e.g., `daytonaio/sandbox:latest`)

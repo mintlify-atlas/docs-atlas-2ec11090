@@ -1,0 +1,79 @@
+---
+title: 'Get Snapshot'
+openapi: 'GET /snapshots/{id}'
+---
+
+Retrieve details of a specific snapshot by ID or name.
+
+## Description
+
+Get detailed information about a snapshot including its state, configuration, resource allocation, and availability across regions.
+
+## Path Parameters
+
+- `id` - Snapshot ID or name (required)
+
+## Example Request
+
+```bash
+curl -X GET "https://api.daytona.io/snapshots/snap_abc123" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example with Snapshot Name
+
+```bash
+curl -X GET "https://api.daytona.io/snapshots/ubuntu-dev-environment" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Response
+
+Returns a snapshot object with the following properties:
+
+### Identification
+
+- `id` - Snapshot ID
+- `name` - Snapshot name
+- `organizationId` - Organization ID
+- `ref` - Snapshot reference (e.g., `daytonaio/sandbox:latest`)
+
+### Configuration
+
+- `imageName` - Image name
+- `entrypoint` - Entrypoint command (array of strings)
+- `general` - Whether the snapshot is general
+- `buildInfo` - Build information for the snapshot
+
+### Resources
+
+- `cpu` - CPU cores
+- `gpu` - GPU units
+- `mem` - Memory in GB
+- `disk` - Disk space in GB
+- `size` - Snapshot size
+
+### State
+
+- `state` - Current state
+  - `building` - Snapshot is being built
+  - `pending` - Snapshot build is pending
+  - `pulling` - Snapshot is being pulled
+  - `active` - Snapshot is active and ready to use
+  - `inactive` - Snapshot is inactive
+  - `error` - An error occurred
+  - `build_failed` - Snapshot build failed
+  - `removing` - Snapshot is being removed
+- `errorReason` - Error reason (if applicable)
+
+### Metadata
+
+- `createdAt` - Creation timestamp
+- `updatedAt` - Last update timestamp
+- `lastUsedAt` - Last used timestamp
+- `regionIds` - IDs of regions where the snapshot is available
+- `initialRunnerId` - The initial runner ID of the snapshot
+
+## Error Responses
+
+- `404` - Snapshot not found

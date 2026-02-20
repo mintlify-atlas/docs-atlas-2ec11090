@@ -1,0 +1,74 @@
+---
+title: Code Examples
+description: Comprehensive code examples for working with Daytona SDK
+---
+
+Explore practical examples demonstrating how to use the Daytona SDK across different languages.
+
+## Available Examples
+
+<CardGroup cols={2}>
+  <Card title="Basic Sandbox" icon="box" href="/examples/basic-sandbox">
+    Create, manage, and interact with sandboxes
+  </Card>
+  <Card title="File Operations" icon="file" href="/examples/file-operations">
+    Upload, download, and manipulate files in sandboxes
+  </Card>
+  <Card title="Git Workflow" icon="git" href="/examples/git-workflow">
+    Clone repositories and perform Git operations
+  </Card>
+  <Card title="Code Execution" icon="code" href="/examples/code-execution">
+    Run code and execute commands in sandboxes
+  </Card>
+  <Card title="Auto Lifecycle" icon="clock" href="/examples/auto-lifecycle">
+    Configure automatic stop, archive, and delete policies
+  </Card>
+</CardGroup>
+
+## SDK Languages
+
+All examples are available in:
+- **Python** - Full async/sync support
+- **TypeScript** - Promise-based async API
+- **Go** - Context-based operations
+
+## Getting Started
+
+Before running these examples, make sure you have:
+
+1. Installed the Daytona SDK for your language
+2. Set your `DAYTONA_API_KEY` environment variable
+3. Configured your Daytona API endpoint (if using self-hosted)
+
+<CodeGroup>
+```bash Python
+pip install daytona-sdk
+export DAYTONA_API_KEY="your-api-key"
+```
+
+```bash TypeScript
+npm install @daytonaio/sdk
+export DAYTONA_API_KEY="your-api-key"
+```
+
+```bash Go
+go get github.com/daytonaio/daytona/libs/sdk-go
+export DAYTONA_API_KEY="your-api-key"
+```
+</CodeGroup>
+
+## Example Structure
+
+Each example page includes:
+- Complete, working code for all three SDKs
+- Detailed explanations of key concepts
+- Expected output from running the examples
+- Best practices and tips
+
+## Running the Examples
+
+All examples are standalone and can be run directly. Simply copy the code for your preferred language and run it.
+
+<Note>
+The examples use the default Daytona endpoint. If you're using a self-hosted instance, configure the endpoint in your client initialization.
+</Note>

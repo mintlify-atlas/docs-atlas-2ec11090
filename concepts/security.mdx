@@ -1,0 +1,650 @@
+---
+title: Security
+description: Understanding Daytona's security model - isolation, network controls, and permissions
+---
+
+## Overview
+
+Daytona is designed with security as a foundational principle, enabling safe execution of AI-generated and untrusted code. The platform employs multiple layers of isolation, strict network controls, and granular permissions to ensure that code execution cannot compromise the host system or access unauthorized resources.
+
+## Security Principles
+
+Daytona's security model is built on these core principles:
+
+1. **Defense in Depth**: Multiple layers of security controls
+2. **Least Privilege**: Minimal permissions by default
+3. **Isolation First**: Complete separation between sandboxes
+4. **Zero Trust Network**: Explicit network access controls
+5. **Secure by Default**: Security features enabled out of the box
+
+<Note>
+Daytona is specifically designed to run AI-generated code safely, providing isolated execution environments that protect your infrastructure from potentially malicious or buggy code.
+</Note>
+
+## Isolation Architecture
+
+### Container Isolation
+
+Each sandbox runs in a separate Docker container with complete isolation:
+
+```
+┌─────────────────────────────────────────────┐
+│              Host System                    │
+│                                             │
+│  ┌─────────────┐  ┌─────────────┐         │
+│  │ Sandbox A   │  │ Sandbox B   │         │
+│  │             │  │             │         │
+│  │ ┌─────────┐ │  │ ┌─────────┐ │         │
+│  │ │ Process │ │  │ │ Process │ │         │
+│  │ │  Space  │ │  │ │  Space  │ │         │
+│  │ └─────────┘ │  │ └─────────┘ │         │
+│  │             │  │             │         │
+│  │ ┌─────────┐ │  │ ┌─────────┐ │         │
+│  │ │ Network │ │  │ │ Network │ │         │
+│  │ │   NS    │ │  │ │   NS    │ │         │
+│  │ └─────────┘ │  │ └─────────┘ │         │
+│  │             │  │             │         │
+│  │ ┌─────────┐ │  │ ┌─────────┐ │         │
+│  │ │  File   │ │  │ │  File   │ │         │
+│  │ │ System  │ │  │ │ System  │ │         │
+│  │ └─────────┘ │  │ └─────────┘ │         │
+│  └─────────────┘  └─────────────┘         │
+│                                             │
+│  Container Runtime (Docker)                 │
+└─────────────────────────────────────────────┘
+```
+
+**Isolation Boundaries:**
+
+<Accordion title="Process Isolation">
+- Each sandbox has its own process namespace
+- Processes cannot see or signal processes in other sandboxes
+- PID 1 isolation prevents process escape
+- Resource limits enforced per sandbox
+</Accordion>
+
+<Accordion title="Network Isolation">
+- Separate network namespace per sandbox
+- Independent network stack and routing
+- Isolated iptables rules
+- No direct inter-sandbox communication
+</Accordion>
+
+<Accordion title="Filesystem Isolation">
+- Separate filesystem per sandbox
+- Union filesystem (overlay2) prevents host access
+- Read-only base layers
+- Volumes mounted with specific permissions
+</Accordion>
+
+<Accordion title="User Namespace Isolation">
+- User namespace mapping
+- Root in container ≠ root on host
+- Privilege escalation prevention
+- Capabilities dropped by default
+</Accordion>
+
+### Resource Isolation
+
+Strict resource limits prevent resource exhaustion attacks:
+
+```python
+# Create sandbox with resource limits
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    cpu=2.0,      # Maximum 2 CPU cores
+    memory=4.0,   # Maximum 4 GB RAM
+    disk=10.0     # Maximum 10 GB disk
+))
+```
+
+**Resource Controls:**
+
+| Resource | Control Mechanism | Default Limit |
+|----------|-------------------|---------------|
+| CPU | cgroups CPU quota | Configurable |
+| Memory | cgroups memory limit + OOM killer | Configurable |
+| Disk | Disk quota enforcement | Configurable |
+| Network | Traffic shaping & iptables | Bandwidth limits |
+| Processes | PID cgroup limit | 1024 processes |
+| File Descriptors | ulimit | 1024 FDs |
+
+<Warning>
+Always set appropriate resource limits when running untrusted code to prevent denial-of-service attacks against your infrastructure.
+</Warning>
+
+## Network Security
+
+### Network Isolation Modes
+
+Daytona provides fine-grained network access controls:
+
+#### 1. Full Network Access (Default)
+
+```python
+# Sandbox has full internet access
+sandbox = daytona.create(CreateSandboxParams(
+    language="python"
+))
+```
+
+<Warning>
+Only use full network access for trusted code. AI-generated code should run with network restrictions.
+</Warning>
+
+#### 2. Network Block All
+
+```python
+# Sandbox has no external network access
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    network_block_all=True
+))
+```
+
+**Blocked:**
+- All outbound internet connections
+- DNS resolution to external servers
+- Connection to other sandboxes
+
+**Allowed:**
+- Localhost communication (127.0.0.1)
+- Communication with daemon services
+
+<Info>
+This is the recommended mode for executing AI-generated code, as it prevents data exfiltration and unauthorized network access.
+</Info>
+
+#### 3. Network Allow List
+
+```python
+# Sandbox can only access specific networks
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    network_allow_list="10.0.0.0/8,172.16.0.0/12,192.168.1.100/32"
+))
+```
+
+**Use Cases:**
+- Access to internal APIs
+- Database connections
+- Specific third-party services
+
+**CIDR Notation:**
+```
+10.0.0.0/8          # Entire 10.x.x.x network
+172.16.0.0/12       # 172.16-31.x.x range
+192.168.1.100/32    # Single IP address
+```
+
+### Network Rule Implementation
+
+Network rules are enforced using iptables:
+
+```bash
+# Block all outbound traffic
+iptables -A OUTPUT -o eth0 -j DROP
+
+# Allow specific CIDR ranges
+iptables -I OUTPUT 1 -d 10.0.0.0/8 -j ACCEPT
+iptables -I OUTPUT 1 -d 172.16.0.0/12 -j ACCEPT
+
+# Always allow localhost
+iptables -I OUTPUT 1 -o lo -j ACCEPT
+```
+
+**Network Rules Manager:**
+- Creates rules when sandbox starts
+- Updates rules if configuration changes
+- Removes rules when sandbox stops
+- Persistent across container restarts
+
+### Traffic Encryption
+
+All communication with sandboxes can be encrypted:
+
+```python
+# Configure TLS for API connections
+daytona = Daytona(DaytonaConfig(
+    api_key="YOUR_API_KEY",
+    api_url="https://api.daytona.io",  # HTTPS
+    verify_ssl=True
+))
+```
+
+**Encrypted Channels:**
+- HTTPS for API requests
+- WSS for WebSocket connections
+- SSH for terminal access
+- TLS for proxy connections
+
+## Authentication and Authorization
+
+### API Key Authentication
+
+All API requests require valid API keys:
+
+```python
+# API key required for all operations
+daytona = Daytona(DaytonaConfig(api_key="YOUR_API_KEY"))
+```
+
+**API Key Security:**
+- Unique per user/organization
+- Can be rotated without downtime
+- Can be scoped to specific permissions
+- Stored encrypted at rest
+- Transmitted only over HTTPS
+
+<Warning>
+Never commit API keys to version control or expose them in client-side code. Use environment variables or secure secret management.
+</Warning>
+
+### Organization Isolation
+
+Sandboxes and resources are isolated by organization:
+
+```python
+# Sandboxes are scoped to your organization
+sandboxes = daytona.sandboxes.list()
+# Only returns sandboxes in your organization
+
+# Cannot access other organizations' resources
+other_sandbox = daytona.sandboxes.get("other-org-sandbox-id")
+# Raises PermissionError
+```
+
+**Organization Boundaries:**
+- Sandboxes
+- Snapshots (except general snapshots)
+- Volumes
+- API keys
+- Metrics and logs
+
+### Role-Based Access Control (RBAC)
+
+API keys can have different permission levels:
+
+| Role | Permissions |
+|------|-------------|
+| Admin | Full access to all resources |
+| Developer | Create/manage sandboxes, snapshots, volumes |
+| Read-Only | View resources, cannot modify |
+| CI/CD | Limited to automated operations |
+
+## Data Security
+
+### Data at Rest
+
+**Volumes:**
+- Stored in S3-compatible object storage
+- Encrypted using server-side encryption (SSE)
+- Access controlled via IAM policies
+- Automatic backup and versioning
+
+**Snapshots:**
+- Stored in container image registry
+- Image layers encrypted
+- Access controlled via registry authentication
+- Scanned for vulnerabilities (optional)
+
+**Configuration:**
+- Environment variables encrypted in transit and at rest
+- Secrets never logged or exposed
+- Labels and metadata encrypted
+
+### Data in Transit
+
+**All data encrypted in transit:**
+- TLS 1.2+ for API connections
+- Encrypted WebSocket connections
+- SSH for terminal access
+- S3 uses HTTPS for volume access
+
+### Data Retention
+
+**Sandbox Data:**
+- Ephemeral by default
+- Deleted when sandbox deleted
+- Can be persisted via volumes
+
+**Volumes:**
+- Persist until explicitly deleted
+- Can be backed up to external storage
+- Subject to organization retention policies
+
+**Logs:**
+- Retained for configurable period
+- Can be exported to external systems
+- Automatically rotated and cleaned up
+
+<Info>
+Use volumes for data that must persist beyond sandbox lifecycle. Never store sensitive data in sandbox filesystem.
+</Info>
+
+## Secrets Management
+
+### Environment Variables
+
+```python
+# Pass secrets via environment variables
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    env={
+        "DATABASE_PASSWORD": os.environ["DB_PASSWORD"],
+        "API_KEY": os.environ["THIRD_PARTY_API_KEY"]
+    }
+))
+```
+
+**Security Measures:**
+- Never logged or displayed
+- Encrypted in transit
+- Isolated per sandbox
+- Cleared on sandbox deletion
+
+### Secrets Best Practices
+
+1. **Never hardcode secrets** in code or configuration files
+2. **Use environment variables** for passing secrets to sandboxes
+3. **Rotate secrets regularly** using automated tools
+4. **Use network isolation** to limit secret exposure
+5. **Monitor access** to detect unauthorized usage
+
+```python
+# Good: Load from environment
+import os
+api_key = os.environ.get("API_KEY")
+
+# Bad: Hardcoded secret
+api_key = "sk-1234567890abcdef"  # DON'T DO THIS
+```
+
+## Vulnerability Management
+
+### Container Scanning
+
+Snapshots and base images can be scanned for vulnerabilities:
+
+```bash
+# Scan snapshot for vulnerabilities
+daytona snapshot scan my-snapshot
+
+# View vulnerability report
+daytona snapshot vulnerabilities my-snapshot
+```
+
+**Scanning Includes:**
+- Operating system packages
+- Language-specific dependencies
+- Known CVEs
+- Malware signatures
+
+### Dependency Management
+
+Control what can be installed in sandboxes:
+
+```python
+# Create sandbox with restricted package installation
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    network_block_all=True  # Prevents pip install from internet
+))
+
+# Pre-install approved dependencies in snapshot
+snapshot_sandbox = daytona.create(CreateSandboxParams(
+    language="python"
+))
+snapshot_sandbox.process.execute_command(
+    "pip install requests==2.31.0 pandas==2.0.0"
+)
+snapshot = snapshot_sandbox.create_snapshot(name="approved-deps")
+
+# Use snapshot with pre-installed dependencies
+safe_sandbox = daytona.create(CreateSandboxParams(
+    snapshot="approved-deps",
+    network_block_all=True
+))
+```
+
+### Security Updates
+
+Daytona components are regularly updated:
+
+- **Base Images**: Updated with security patches
+- **Daemon**: Auto-updated with latest security fixes
+- **Runner**: Rolling updates with zero downtime
+- **Dependencies**: Continuously monitored and updated
+
+## Compliance and Auditing
+
+### Audit Logging
+
+All operations are logged for audit purposes:
+
+```python
+# All sandbox operations are logged
+sandbox = daytona.create(...)  # Logged: sandbox.create
+sandbox.process.execute_command("ls")  # Logged: process.execute
+sandbox.delete()  # Logged: sandbox.delete
+```
+
+**Logged Events:**
+- Sandbox lifecycle (create, start, stop, delete)
+- Code execution and commands
+- File operations
+- Network connections (if monitoring enabled)
+- Authentication attempts
+- Permission changes
+
+**Audit Log Format:**
+```json
+{
+  "timestamp": "2026-02-20T10:30:00Z",
+  "event": "sandbox.create",
+  "user": "user@example.com",
+  "organization": "org-123",
+  "resource": "sandbox-456",
+  "metadata": {
+    "language": "python",
+    "cpu": 2.0,
+    "memory": 4.0
+  }
+}
+```
+
+### Compliance Standards
+
+Daytona is designed to support compliance with:
+
+- **SOC 2**: Security controls and monitoring
+- **GDPR**: Data privacy and deletion
+- **HIPAA**: Healthcare data protection (with proper configuration)
+- **PCI DSS**: Payment card data security
+
+<Note>
+Compliance depends on proper configuration. Consult with your security team to ensure Daytona is configured to meet your specific compliance requirements.
+</Note>
+
+## Security Best Practices
+
+### For Running AI-Generated Code
+
+```python
+# Secure configuration for AI code execution
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    network_block_all=True,      # No internet access
+    cpu=1.0,                     # Limit resources
+    memory=2.0,
+    disk=5.0,
+    auto_delete_interval=60,     # Auto-cleanup
+    labels={"purpose": "ai-code-execution"}
+))
+
+try:
+    # Execute AI-generated code
+    result = sandbox.process.code_run(ai_generated_code, timeout=30)
+    if result.exit_code != 0:
+        log.warning(f"Code execution failed: {result.result}")
+except Exception as e:
+    log.error(f"Execution error: {e}")
+finally:
+    # Always cleanup
+    daytona.delete(sandbox)
+```
+
+### For Production Workloads
+
+```python
+# Production-ready configuration
+sandbox = daytona.create(CreateSandboxParams(
+    language="python",
+    snapshot="approved-production-v1.0.0",
+    network_allow_list="10.0.0.0/8",  # Only internal network
+    cpu=4.0,
+    memory=8.0,
+    volumes=[
+        {"volume_id": "app-data", "mount_path": "/data"},
+    ],
+    env={
+        "ENV": "production",
+        "DB_PASSWORD": get_secret("db_password"),
+    },
+    labels={
+        "environment": "production",
+        "team": "platform",
+        "cost-center": "engineering"
+    },
+    auto_stop_interval=30,
+    auto_archive_interval=120
+))
+```
+
+### Security Checklist
+
+- [ ] Use network isolation for untrusted code
+- [ ] Set appropriate resource limits
+- [ ] Rotate API keys regularly
+- [ ] Enable audit logging
+- [ ] Use TLS/HTTPS for all connections
+- [ ] Scan snapshots for vulnerabilities
+- [ ] Implement least privilege access
+- [ ] Monitor sandbox activity
+- [ ] Use environment variables for secrets
+- [ ] Enable auto-delete for temporary sandboxes
+- [ ] Review and update base images regularly
+- [ ] Implement backup strategies for volumes
+- [ ] Use organization isolation
+- [ ] Configure alerting for security events
+- [ ] Document security configurations
+
+## Incident Response
+
+### Detecting Security Issues
+
+**Monitor for:**
+- Unusual resource consumption
+- Failed authentication attempts
+- Unexpected network connections
+- Sandbox errors and crashes
+- Privilege escalation attempts
+
+**Alerting:**
+```python
+# Configure webhooks for security events
+daytona.webhooks.create(
+    url="https://your-security-system.com/webhooks",
+    events=[
+        "sandbox.error",
+        "sandbox.network_violation",
+        "auth.failure"
+    ]
+)
+```
+
+### Containment
+
+If a security issue is detected:
+
+```python
+# Immediately stop affected sandboxes
+affected_sandboxes = daytona.sandboxes.list(
+    labels={"compromised": "true"}
+)
+
+for sandbox in affected_sandboxes:
+    sandbox.stop()
+    # Or delete if necessary
+    daytona.delete(sandbox)
+```
+
+### Recovery
+
+1. **Isolate** affected resources
+2. **Investigate** audit logs for root cause
+3. **Remediate** by updating configurations
+4. **Verify** security controls are working
+5. **Document** incident and lessons learned
+
+## Advanced Security Features
+
+### Custom Security Policies
+
+```python
+# Enforce organization-wide security policies
+class SecurityPolicy:
+    @staticmethod
+    def validate_sandbox_config(config):
+        # Enforce network isolation for AI code
+        if config.get("purpose") == "ai-execution":
+            assert config["network_block_all"] == True
+        
+        # Enforce resource limits
+        assert config["cpu"] <= 8.0
+        assert config["memory"] <= 16.0
+        
+        # Require auto-delete
+        assert config.get("auto_delete_interval") is not None
+        
+        return True
+
+# Apply policy before creating sandbox
+config = CreateSandboxParams(...)
+if SecurityPolicy.validate_sandbox_config(config):
+    sandbox = daytona.create(config)
+```
+
+### Runtime Monitoring
+
+```python
+# Monitor sandbox behavior in real-time
+def monitor_sandbox(sandbox):
+    while sandbox.state == "started":
+        metrics = sandbox.metrics.get()
+        
+        # Alert on unusual activity
+        if metrics.cpu > 90:
+            alert("High CPU usage detected")
+        if metrics.network_tx > threshold:
+            alert("Unusual network traffic")
+        
+        time.sleep(10)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Understand the system architecture
+  </Card>
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes">
+    Learn about sandbox management
+  </Card>
+  <Card title="Best Practices" icon="shield-check" href="/guides/best-practices">
+    Follow security best practices
+  </Card>
+  <Card title="Compliance" icon="file-contract" href="/compliance">
+    Learn about compliance features
+  </Card>
+</CardGroup>

@@ -1,0 +1,409 @@
+---
+title: Language Server Protocol
+description: Code intelligence and IDE-like features with LSP integration
+---
+
+The Language Server Protocol (LSP) integration provides powerful code intelligence features including completions, symbol search, and code navigation within sandbox environments.
+
+## Overview
+
+Daytona's LSP support enables:
+- **Code completions** - Intelligent autocomplete suggestions
+- **Symbol search** - Find functions, classes, and variables across projects
+- **Document symbols** - Extract structure from source files
+- **Multi-language support** - TypeScript, JavaScript, and Python
+
+## Supported Languages
+
+Daytona supports LSP for the following languages:
+
+```typescript
+enum LspLanguageId {
+  PYTHON = 'python',
+  TYPESCRIPT = 'typescript',
+  JAVASCRIPT = 'javascript'
+}
+```
+
+## Creating an LSP Server
+
+### Initialize Language Server
+
+Create and start an LSP server for your project:
+
+```typescript
+const lsp = await sandbox.createLspServer(
+  'typescript',          // language
+  'workspace/project'    // project root path
+);
+
+// Start the language server
+await lsp.start();
+```
+
+<ParamField path="languageId" type="LspLanguageId" required>
+  Language server type: 'typescript', 'javascript', or 'python'
+</ParamField>
+
+<ParamField path="pathToProject" type="string" required>
+  Path to project root directory. Relative paths resolved from sandbox working directory.
+</ParamField>
+
+## Document Lifecycle
+
+### Open a Document
+
+Notify the LSP server when opening a file:
+
+```typescript
+await lsp.didOpen('workspace/project/src/index.ts');
+```
+
+Opening a document enables language features like diagnostics and completions for that file.
+
+### Close a Document
+
+Notify the LSP server when closing a file:
+
+```typescript
+await lsp.didClose('workspace/project/src/index.ts');
+```
+
+Closing documents helps the LSP server manage resources efficiently.
+
+<ParamField path="path" type="string" required>
+  Path to the file. Relative paths resolved from project path set in LSP server constructor.
+</ParamField>
+
+## Code Completions
+
+### Get Completion Suggestions
+
+Retrieve intelligent completion suggestions at a cursor position:
+
+```typescript
+const completions = await lsp.completions(
+  'workspace/project/src/index.ts',
+  {
+    line: 10,        // zero-based line number
+    character: 15    // zero-based character offset
+  }
+);
+
+console.log('Incomplete:', completions.isIncomplete);
+
+completions.items.forEach(item => {
+  console.log(`${item.label} (${item.kind})`);
+  console.log(`  Detail: ${item.detail}`);
+  console.log(`  Docs: ${item.documentation}`);
+  console.log(`  Insert: ${item.insertText || item.label}`);
+});
+```
+
+**Position Format:**
+
+```typescript
+interface Position {
+  line: number;      // Zero-based line number
+  character: number; // Zero-based character offset
+}
+```
+
+**Completion Response:**
+
+```typescript
+interface CompletionList {
+  isIncomplete: boolean;      // More items available
+  items: CompletionItem[];    // Completion suggestions
+}
+
+interface CompletionItem {
+  label: string;              // Text to display
+  kind: number;               // Completion type
+  detail?: string;            // Additional info
+  documentation?: string;     // Documentation
+  sortText?: string;          // Sort order
+  filterText?: string;        // Filter text
+  insertText?: string;        // Text to insert
+}
+```
+
+<ParamField path="path" type="string" required>
+  Path to the file
+</ParamField>
+
+<ParamField path="position" type="Position" required>
+  Cursor position for completions
+  
+  <Expandable title="properties">
+    <ParamField path="line" type="number" required>
+      Zero-based line number in the document
+    </ParamField>
+    
+    <ParamField path="character" type="number" required>
+      Zero-based character offset on the line
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Symbol Search
+
+### Document Symbols
+
+Get all symbols (functions, classes, variables) from a document:
+
+```typescript
+const symbols = await lsp.documentSymbols(
+  'workspace/project/src/index.ts'
+);
+
+symbols.forEach(symbol => {
+  console.log(`${symbol.kind} ${symbol.name}`);
+  console.log(`  Location: ${symbol.location}`);
+});
+```
+
+### Workspace Symbols
+
+Search for symbols across the entire sandbox:
+
+```typescript
+// Search for all symbols containing "User"
+const symbols = await lsp.sandboxSymbols('User');
+
+symbols.forEach(symbol => {
+  console.log(`${symbol.name} (${symbol.kind})`);
+  console.log(`  in ${symbol.location}`);
+});
+```
+
+<Note>
+  `workspaceSymbols()` is deprecated. Use `sandboxSymbols()` instead.
+</Note>
+
+**Symbol Response:**
+
+```typescript
+interface LspSymbol {
+  name: string;        // Symbol name
+  kind: string;        // Symbol type (function, class, etc.)
+  location: string;    // File location
+}
+```
+
+<ParamField path="query" type="string" required>
+  Search query to match against symbol names
+</ParamField>
+
+## Complete Example
+
+```typescript
+import { Daytona, Image } from '@daytonaio/sdk';
+
+const daytona = new Daytona();
+
+const sandbox = await daytona.create({
+  image: Image.base('ubuntu:25.10').runCommands(
+    'apt-get update && apt-get install -y nodejs npm',
+    'npm install -g typescript typescript-language-server'
+  ),
+  language: 'typescript'
+});
+
+try {
+  const projectPath = 'workspace/myproject';
+  
+  // Clone a TypeScript project
+  await sandbox.git.clone(
+    'https://github.com/user/typescript-project.git',
+    projectPath
+  );
+  
+  // Create and start LSP server
+  const lsp = await sandbox.createLspServer('typescript', projectPath);
+  await lsp.start();
+  
+  // Find files to analyze
+  const matches = await sandbox.fs.searchFiles(
+    projectPath,
+    '*.ts'
+  );
+  
+  const mainFile = matches.files[0];
+  
+  // Open document for analysis
+  await lsp.didOpen(mainFile);
+  
+  // Get document symbols
+  const symbols = await lsp.documentSymbols(mainFile);
+  console.log('Document contains', symbols.length, 'symbols');
+  
+  symbols.forEach(symbol => {
+    console.log(`- ${symbol.kind}: ${symbol.name}`);
+  });
+  
+  // Get completions at a specific position
+  const completions = await lsp.completions(mainFile, {
+    line: 5,
+    character: 10
+  });
+  
+  console.log('\nAvailable completions:');
+  completions.items.slice(0, 10).forEach(item => {
+    console.log(`- ${item.label}: ${item.detail}`);
+  });
+  
+  // Search for specific symbols across project
+  const userSymbols = await lsp.sandboxSymbols('handleRequest');
+  console.log('\nFound symbols matching "handleRequest":');
+  userSymbols.forEach(symbol => {
+    console.log(`- ${symbol.name} in ${symbol.location}`);
+  });
+  
+  // Clean up when done
+  await lsp.didClose(mainFile);
+  await lsp.stop();
+  
+} finally {
+  await daytona.delete(sandbox);
+}
+```
+
+## Language-Specific Setup
+
+### TypeScript / JavaScript
+
+Ensure TypeScript LSP is installed:
+
+```typescript
+const sandbox = await daytona.create({
+  image: Image.base('ubuntu:25.10').runCommands(
+    'apt-get update && apt-get install -y nodejs npm',
+    'npm install -g typescript typescript-language-server'
+  ),
+  language: 'typescript'
+});
+```
+
+### Python
+
+Ensure Python LSP is installed:
+
+```typescript
+const sandbox = await daytona.create({
+  image: Image.base('ubuntu:22.04').runCommands(
+    'apt-get update',
+    'apt-get install -y python3 python3-pip',
+    'pip3 install python-lsp-server'
+  ),
+  language: 'python'
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Open documents before operations">
+    Always call `didOpen()` before getting completions or symbols for a file:
+    
+    ```typescript
+    await lsp.didOpen(filePath);
+    const completions = await lsp.completions(filePath, position);
+    ```
+  </Accordion>
+
+  <Accordion title="Close documents when done">
+    Release resources by closing documents you're no longer working with:
+    
+    ```typescript
+    await lsp.didClose(filePath);
+    ```
+  </Accordion>
+
+  <Accordion title="Stop server when finished">
+    Always stop the LSP server to free resources:
+    
+    ```typescript
+    try {
+      await lsp.start();
+      // ... use LSP
+    } finally {
+      await lsp.stop();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle position carefully">
+    Remember that line and character positions are **zero-based**:
+    
+    ```typescript
+    // Line 1, Column 1 in editor = { line: 0, character: 0 }
+    const completions = await lsp.completions(file, {
+      line: 0,      // First line
+      character: 0  // First character
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Code Analysis">
+    Extract structure and symbols from codebases:
+    
+    ```typescript
+    const symbols = await lsp.documentSymbols(file);
+    const functions = symbols.filter(s => s.kind === 'Function');
+    ```
+  </Accordion>
+
+  <Accordion title="Intelligent Search">
+    Find specific symbols across large projects:
+    
+    ```typescript
+    const results = await lsp.sandboxSymbols('handleError');
+    // Find all error handlers in the codebase
+    ```
+  </Accordion>
+
+  <Accordion title="Code Generation">
+    Use completions to assist with code generation:
+    
+    ```typescript
+    const completions = await lsp.completions(file, position);
+    const suggestions = completions.items.map(i => i.label);
+    ```
+  </Accordion>
+
+  <Accordion title="Refactoring Assistance">
+    Identify symbols before performing refactoring:
+    
+    ```typescript
+    const symbols = await lsp.workspaceSymbols('OldClassName');
+    // Find all occurrences before renaming
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Warning>
+  If you get "Invalid languageId" error, ensure you're using one of the supported language IDs: `'python'`, `'typescript'`, or `'javascript'`.
+</Warning>
+
+<Warning>
+  Make sure the LSP server for your language is installed in the sandbox image before calling `start()`.
+</Warning>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Git Operations" icon="code-branch" href="/features/git-operations">
+    Clone repositories for LSP analysis
+  </Card>
+  
+  <Card title="File System" icon="folder" href="/features/filesystem-operations">
+    Search and manage source files
+  </Card>
+</CardGroup>

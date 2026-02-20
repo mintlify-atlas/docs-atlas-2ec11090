@@ -1,0 +1,697 @@
+---
+title: Auto Lifecycle Management
+description: Configure automatic stop, archive, and delete policies for sandboxes
+---
+
+This example demonstrates how to manage sandbox lifecycle automatically using auto-stop, auto-archive, and auto-delete intervals.
+
+## What You'll Learn
+
+- Setting auto-archive intervals
+- Configuring auto-delete policies
+- Understanding lifecycle states
+- Creating sandboxes with custom intervals
+- Updating intervals on existing sandboxes
+- Best practices for cost optimization
+
+## Auto-Archive Examples
+
+Auto-archive automatically archives inactive sandboxes to reduce storage costs while preserving their state.
+
+<Tabs>
+  <Tab title="Python">
+```python
+from daytona import CreateSandboxFromSnapshotParams, Daytona
+
+
+def main():
+    daytona = Daytona()
+
+    # Default interval
+    sandbox1 = daytona.create()
+    print(sandbox1.auto_archive_interval)
+
+    # Set interval to 1 hour
+    sandbox1.set_auto_archive_interval(60)
+    print(sandbox1.auto_archive_interval)
+
+    # Max interval (never archive)
+    sandbox2 = daytona.create(params=CreateSandboxFromSnapshotParams(auto_archive_interval=0))
+    print(sandbox2.auto_archive_interval)
+
+    # 1 day interval
+    sandbox3 = daytona.create(params=CreateSandboxFromSnapshotParams(auto_archive_interval=1440))
+    print(sandbox3.auto_archive_interval)
+
+    sandbox1.delete()
+    sandbox2.delete()
+    sandbox3.delete()
+
+
+if __name__ == "__main__":
+    main()
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+async function main() {
+  const daytona = new Daytona()
+
+  // Default interval
+  const sandbox1 = await daytona.create()
+  console.log(sandbox1.autoArchiveInterval)
+
+  // Set interval to 1 hour
+  await sandbox1.setAutoArchiveInterval(60)
+  console.log(sandbox1.autoArchiveInterval)
+
+  // Max interval (never archive)
+  const sandbox2 = await daytona.create({
+    autoArchiveInterval: 0,
+  })
+  console.log(sandbox2.autoArchiveInterval)
+
+  // 1 day interval
+  const sandbox3 = await daytona.create({
+    autoArchiveInterval: 1440,
+  })
+  console.log(sandbox3.autoArchiveInterval)
+
+  await sandbox1.delete()
+  await sandbox2.delete()
+  await sandbox3.delete()
+}
+
+main().catch(console.error)
+```
+  </Tab>
+  <Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+	client, err := daytona.NewClient()
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Example 1: Default interval
+	log.Println("=== Example 1: Default auto-archive interval ===")
+	params1 := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language: types.CodeLanguagePython,
+		},
+	}
+
+	sandbox1, err := client.Create(ctx, params1, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+	log.Printf("Default auto-archive interval: %d minutes\n", sandbox1.AutoArchiveInterval)
+
+	// Example 2: Set interval to 1 hour
+	log.Println("\n=== Example 2: Update auto-archive interval to 60 minutes ===")
+	interval := 60
+	if err := sandbox1.SetAutoArchiveInterval(ctx, &interval); err != nil {
+		log.Fatalf("Failed to set auto-archive interval: %v", err)
+	}
+
+	// Refresh sandbox info to see the updated interval
+	sandbox1, err = client.Get(ctx, sandbox1.ID)
+	if err != nil {
+		log.Fatalf("Failed to get sandbox: %v", err)
+	}
+	log.Printf("Updated auto-archive interval: %d minutes\n", sandbox1.AutoArchiveInterval)
+
+	// Clean up first sandbox
+	if err := sandbox1.Delete(ctx); err != nil {
+		log.Printf("Failed to delete sandbox: %v", err)
+	}
+
+	// Example 3: Max interval (never archive)
+	log.Println("\n=== Example 3: Sandbox with max interval (never archive) ===")
+	maxInterval := 0
+	params2 := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language:            types.CodeLanguagePython,
+			AutoArchiveInterval: &maxInterval,
+		},
+	}
+
+	sandbox2, err := client.Create(ctx, params2, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+	log.Printf("Auto-archive interval: %d (never archive)\n", sandbox2.AutoArchiveInterval)
+
+	// Clean up second sandbox
+	if err := sandbox2.Delete(ctx); err != nil {
+		log.Printf("Failed to delete sandbox: %v", err)
+	}
+
+	// Example 4: 1 day interval
+	log.Println("\n=== Example 4: Sandbox with 1 day auto-archive interval ===")
+	oneDayInterval := 1440 // 24 hours * 60 minutes
+	params3 := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language:            types.CodeLanguagePython,
+			AutoArchiveInterval: &oneDayInterval,
+		},
+	}
+
+	sandbox3, err := client.Create(ctx, params3, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+	log.Printf("Auto-archive interval: %d minutes (1 day)\n", sandbox3.AutoArchiveInterval)
+
+	// Clean up third sandbox
+	if err := sandbox3.Delete(ctx); err != nil {
+		log.Printf("Failed to delete sandbox: %v", err)
+	}
+
+	log.Println("\n✓ All auto-archive examples completed successfully!")
+}
+```
+  </Tab>
+</Tabs>
+
+## Auto-Delete Examples
+
+Auto-delete automatically removes sandboxes after they've been stopped for a specified period.
+
+<Tabs>
+  <Tab title="Python">
+```python
+from daytona import CreateSandboxFromSnapshotParams, Daytona
+
+
+def main():
+    daytona = Daytona()
+
+    # Auto-delete is disabled by default
+    sandbox1 = daytona.create()
+    print(sandbox1.auto_delete_interval)
+
+    # Auto-delete after the Sandbox has been stopped for 1 hour
+    sandbox1.set_auto_delete_interval(60)
+    print(sandbox1.auto_delete_interval)
+
+    # Delete immediately upon stopping
+    sandbox1.set_auto_delete_interval(0)
+    print(sandbox1.auto_delete_interval)
+
+    # Disable auto-delete
+    sandbox1.set_auto_delete_interval(-1)
+    print(sandbox1.auto_delete_interval)
+
+    # Auto-delete after the Sandbox has been stopped for 1 day
+    sandbox2 = daytona.create(params=CreateSandboxFromSnapshotParams(auto_delete_interval=1440))
+    print(sandbox2.auto_delete_interval)
+
+
+if __name__ == "__main__":
+    main()
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+async function main() {
+  const daytona = new Daytona()
+
+  // Auto-delete is disabled by default
+  const sandbox1 = await daytona.create()
+  console.log(sandbox1.autoDeleteInterval)
+
+  // Auto-delete after the Sandbox has been stopped for 1 hour
+  await sandbox1.setAutoDeleteInterval(60)
+  console.log(sandbox1.autoDeleteInterval)
+
+  // Delete immediately upon stopping
+  await sandbox1.setAutoDeleteInterval(0)
+  console.log(sandbox1.autoDeleteInterval)
+
+  // Disable auto-delete
+  await sandbox1.setAutoDeleteInterval(-1)
+  console.log(sandbox1.autoDeleteInterval)
+
+  // Auto-delete after the Sandbox has been stopped for 1 day
+  const sandbox2 = await daytona.create({
+    autoDeleteInterval: 1440,
+  })
+  console.log(sandbox2.autoDeleteInterval)
+}
+
+main().catch(console.error)
+```
+  </Tab>
+  <Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+	client, err := daytona.NewClient()
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Example 1: Auto-delete is disabled by default
+	log.Println("=== Example 1: Default auto-delete interval (disabled) ===")
+	params1 := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language: types.CodeLanguagePython,
+		},
+	}
+
+	sandbox1, err := client.Create(ctx, params1, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+	log.Printf("Default auto-delete interval: %d (disabled)\n", sandbox1.AutoDeleteInterval)
+
+	// Example 2: Auto-delete after the Sandbox has been stopped for 1 hour
+	log.Println("\n=== Example 2: Set auto-delete to 60 minutes after stop ===")
+	interval := 60
+	if err := sandbox1.SetAutoDeleteInterval(ctx, &interval); err != nil {
+		log.Fatalf("Failed to set auto-delete interval: %v", err)
+	}
+
+	// Refresh sandbox info
+	sandbox1, err = client.Get(ctx, sandbox1.ID)
+	if err != nil {
+		log.Fatalf("Failed to get sandbox: %v", err)
+	}
+	log.Printf("Updated auto-delete interval: %d minutes\n", sandbox1.AutoDeleteInterval)
+
+	// Example 3: Delete immediately upon stopping
+	log.Println("\n=== Example 3: Delete immediately upon stopping (0 minutes) ===")
+	immediateInterval := 0
+	if err := sandbox1.SetAutoDeleteInterval(ctx, &immediateInterval); err != nil {
+		log.Fatalf("Failed to set auto-delete interval: %v", err)
+	}
+
+	// Refresh sandbox info
+	sandbox1, err = client.Get(ctx, sandbox1.ID)
+	if err != nil {
+		log.Fatalf("Failed to get sandbox: %v", err)
+	}
+	log.Printf("Updated auto-delete interval: %d (immediate)\n", sandbox1.AutoDeleteInterval)
+
+	// Example 4: Disable auto-delete
+	log.Println("\n=== Example 4: Disable auto-delete (-1) ===")
+	disableInterval := -1
+	if err := sandbox1.SetAutoDeleteInterval(ctx, &disableInterval); err != nil {
+		log.Fatalf("Failed to set auto-delete interval: %v", err)
+	}
+
+	// Refresh sandbox info
+	sandbox1, err = client.Get(ctx, sandbox1.ID)
+	if err != nil {
+		log.Fatalf("Failed to get sandbox: %v", err)
+	}
+	log.Printf("Updated auto-delete interval: %d (disabled)\n", sandbox1.AutoDeleteInterval)
+
+	// Clean up first sandbox
+	if err := sandbox1.Delete(ctx); err != nil {
+		log.Printf("Failed to delete sandbox: %v", err)
+	}
+
+	// Example 5: Auto-delete after the Sandbox has been stopped for 1 day
+	log.Println("\n=== Example 5: Sandbox with 1 day auto-delete interval ===")
+	oneDayInterval := 1440 // 24 hours * 60 minutes
+	params2 := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language:           types.CodeLanguagePython,
+			AutoDeleteInterval: &oneDayInterval,
+		},
+	}
+
+	sandbox2, err := client.Create(ctx, params2, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+	log.Printf("Auto-delete interval: %d minutes (1 day)\n", sandbox2.AutoDeleteInterval)
+
+	// Clean up second sandbox
+	if err := sandbox2.Delete(ctx); err != nil {
+		log.Printf("Failed to delete sandbox: %v", err)
+	}
+
+	log.Println("\n✓ All auto-delete examples completed successfully!")
+}
+```
+  </Tab>
+</Tabs>
+
+## Expected Output
+
+### Auto-Archive
+```
+30  # Default interval (30 minutes)
+60  # Updated to 1 hour
+0   # Never archive
+1440  # 1 day (24 hours)
+```
+
+### Auto-Delete
+```
+-1  # Disabled by default
+60  # 1 hour after stop
+0   # Immediate deletion
+-1  # Disabled again
+1440  # 1 day after stop
+```
+
+## Key Concepts
+
+### Auto-Archive Intervals
+
+Auto-archive helps reduce storage costs by archiving inactive sandboxes:
+
+- **Default**: 30 minutes of inactivity
+- **0**: Never archive (sandbox stays active)
+- **Positive number**: Minutes of inactivity before archiving
+- **Effect**: Archived sandboxes consume minimal storage
+
+<CodeGroup>
+```python Python
+# Create with custom interval
+sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=120  # 2 hours
+    )
+)
+
+# Update existing sandbox
+sandbox.set_auto_archive_interval(60)  # 1 hour
+```
+
+```typescript TypeScript
+// Create with custom interval
+const sandbox = await daytona.create({
+  autoArchiveInterval: 120  // 2 hours
+})
+
+// Update existing sandbox
+await sandbox.setAutoArchiveInterval(60)  // 1 hour
+```
+
+```go Go
+// Create with custom interval
+interval := 120  // 2 hours
+params := types.SnapshotParams{
+    SandboxBaseParams: types.SandboxBaseParams{
+        AutoArchiveInterval: &interval,
+    },
+}
+sandbox, err := client.Create(ctx, params)
+
+// Update existing sandbox
+newInterval := 60
+err = sandbox.SetAutoArchiveInterval(ctx, &newInterval)
+```
+</CodeGroup>
+
+### Auto-Delete Intervals
+
+Auto-delete permanently removes sandboxes after being stopped:
+
+- **Default**: -1 (disabled)
+- **-1**: Disabled (sandbox never auto-deletes)
+- **0**: Delete immediately when stopped
+- **Positive number**: Minutes after stop before deletion
+- **Effect**: Sandbox and all data are permanently removed
+
+<Warning>
+**Permanent deletion**: Auto-delete permanently removes the sandbox and all its data. Use with caution!
+</Warning>
+
+<CodeGroup>
+```python Python
+# Disable auto-delete (default)
+sandbox.set_auto_delete_interval(-1)
+
+# Delete immediately on stop
+sandbox.set_auto_delete_interval(0)
+
+# Delete after 24 hours of being stopped
+sandbox.set_auto_delete_interval(1440)
+```
+
+```typescript TypeScript
+// Disable auto-delete (default)
+await sandbox.setAutoDeleteInterval(-1)
+
+// Delete immediately on stop
+await sandbox.setAutoDeleteInterval(0)
+
+// Delete after 24 hours of being stopped
+await sandbox.setAutoDeleteInterval(1440)
+```
+
+```go Go
+// Disable auto-delete (default)
+disabled := -1
+err = sandbox.SetAutoDeleteInterval(ctx, &disabled)
+
+// Delete immediately on stop
+immediate := 0
+err = sandbox.SetAutoDeleteInterval(ctx, &immediate)
+
+// Delete after 24 hours of being stopped
+oneDay := 1440
+err = sandbox.SetAutoDeleteInterval(ctx, &oneDay)
+```
+</CodeGroup>
+
+### Lifecycle States
+
+Sandboxes transition through these states:
+
+```
+running -> stopped -> archived
+   ↓         ↓          ↓
+deleted <- deleted <- deleted
+```
+
+- **running**: Sandbox is active and consuming compute resources
+- **stopped**: Sandbox is paused, only storage costs apply
+- **archived**: Sandbox is compressed, minimal storage costs
+- **deleted**: Sandbox is permanently removed
+
+## Common Configurations
+
+### Development Sandboxes
+
+```python
+# Short-lived dev environment
+sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=15,  # Archive after 15 min
+        auto_delete_interval=60    # Delete after 1 hour stopped
+    )
+)
+```
+
+### Production Sandboxes
+
+```python
+# Long-lived production environment
+sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=0,   # Never archive
+        auto_delete_interval=-1    # Never auto-delete
+    )
+)
+```
+
+### Demo/Testing Sandboxes
+
+```python
+# Temporary demo environment
+sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=5,   # Quick archive (5 min)
+        auto_delete_interval=0     # Delete immediately on stop
+    )
+)
+```
+
+### CI/CD Sandboxes
+
+```python
+# Ephemeral CI environment
+sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=0,   # Don't archive
+        auto_delete_interval=0     # Delete immediately when done
+    )
+)
+```
+
+## Cost Optimization
+
+### Understanding Costs
+
+| State | Compute Cost | Storage Cost | Recovery Time |
+|-------|--------------|--------------|---------------|
+| Running | Full | Full | Immediate |
+| Stopped | None | Full | ~10 seconds |
+| Archived | None | Minimal | ~30 seconds |
+| Deleted | None | None | Cannot recover |
+
+### Optimization Strategies
+
+<Tip>
+**Development workflows**: Set `auto_archive_interval=30` to quickly archive idle dev sandboxes while keeping them recoverable.
+</Tip>
+
+<Tip>
+**CI/CD pipelines**: Use `auto_delete_interval=0` to immediately clean up test environments after job completion.
+</Tip>
+
+<Tip>
+**Long-running services**: Set `auto_archive_interval=0` and `auto_delete_interval=-1` to prevent disruption.
+</Tip>
+
+## Best Practices
+
+### 1. Match Intervals to Use Case
+
+```python
+# Short-lived: aggressive cleanup
+test_sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=5,
+        auto_delete_interval=30
+    )
+)
+
+# Long-lived: conservative settings
+production_sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_archive_interval=0,
+        auto_delete_interval=-1
+    )
+)
+```
+
+### 2. Update Intervals Dynamically
+
+```python
+# Start with aggressive cleanup
+sandbox = daytona.create(
+    params=CreateSandboxFromSnapshotParams(
+        auto_delete_interval=60
+    )
+)
+
+# If promoted to production, disable auto-delete
+if is_production:
+    sandbox.set_auto_delete_interval(-1)
+```
+
+### 3. Monitor Sandbox State
+
+```python
+# Check before modifying
+sandbox = daytona.get(sandbox_id)
+if sandbox.state == "running":
+    # Safe to extend lifecycle
+    sandbox.set_auto_archive_interval(0)
+```
+
+### 4. Label for Tracking
+
+```python
+sandbox.set_labels({
+    "environment": "development",
+    "auto_cleanup": "enabled",
+    "retention": "1_day"
+})
+```
+
+## Interval Recommendations
+
+### By Use Case
+
+| Use Case | Auto-Archive | Auto-Delete | Rationale |
+|----------|--------------|-------------|------------|
+| Active Development | 30-60 min | 24 hours | Balance quick recovery and cleanup |
+| CI/CD Pipeline | 0 (disabled) | 0 (immediate) | Clean up immediately after use |
+| Demo Environment | 5-10 min | 1-2 hours | Quick cleanup, short retention |
+| Production | 0 (disabled) | -1 (disabled) | Always available, manual cleanup |
+| Testing/QA | 15-30 min | 4-8 hours | Moderate cleanup |
+| Training/Workshops | 60 min | 7 days | Available during session, cleanup after |
+
+### By Team Size
+
+- **Individual developers**: 30 min archive, 24 hour delete
+- **Small teams**: 60 min archive, 48 hour delete
+- **Large organizations**: Custom per project, use labels
+
+## Troubleshooting
+
+### Sandbox Deleted Unexpectedly
+
+```python
+# Check auto-delete interval
+sandbox = daytona.get(sandbox_id)
+if sandbox.auto_delete_interval == 0:
+    print("Warning: Sandbox will delete immediately on stop!")
+```
+
+### Archive Taking Too Long
+
+```python
+# Increase archive interval for large sandboxes
+if sandbox.disk_size_gb > 10:
+    sandbox.set_auto_archive_interval(120)  # 2 hours
+```
+
+### Disable All Auto-Cleanup
+
+```python
+# Completely disable automatic lifecycle management
+sandbox.set_auto_archive_interval(0)   # Never archive
+sandbox.set_auto_delete_interval(-1)   # Never delete
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Sandbox" icon="box" href="/examples/basic-sandbox">
+    Learn sandbox fundamentals
+  </Card>
+  <Card title="File Operations" icon="file" href="/examples/file-operations">
+    Work with files in sandboxes
+  </Card>
+</CardGroup>

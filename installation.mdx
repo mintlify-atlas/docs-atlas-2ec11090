@@ -1,0 +1,278 @@
+---
+title: Installation
+description: Install the Daytona SDK for Python, TypeScript, Go, or Ruby
+---
+
+The Daytona SDK is available for multiple programming languages. Choose the one that best fits your project.
+
+## Python SDK
+
+The Python SDK supports Python 3.9 and higher.
+
+<Tabs>
+  <Tab title="pip">
+    ```bash
+    pip install daytona
+    ```
+  </Tab>
+  <Tab title="poetry">
+    ```bash
+    poetry add daytona
+    ```
+  </Tab>
+  <Tab title="uv">
+    ```bash
+    uv add daytona
+    ```
+  </Tab>
+</Tabs>
+
+### Verify installation
+
+```python
+from daytona import Daytona
+
+print("Daytona SDK installed successfully!")
+```
+
+### Python requirements
+
+- Python >= 3.9, < 4.0
+- Dependencies: `environs`, `pydantic`, `httpx`, `aiofiles`, `websockets`, and more (automatically installed)
+
+## TypeScript SDK
+
+The TypeScript SDK supports Node.js 16 and higher.
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm install @daytonaio/sdk
+    ```
+  </Tab>
+  <Tab title="yarn">
+    ```bash
+    yarn add @daytonaio/sdk
+    ```
+  </Tab>
+  <Tab title="pnpm">
+    ```bash
+    pnpm add @daytonaio/sdk
+    ```
+  </Tab>
+  <Tab title="bun">
+    ```bash
+    bun add @daytonaio/sdk
+    ```
+  </Tab>
+</Tabs>
+
+### Verify installation
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+console.log('Daytona SDK installed successfully!')
+```
+
+### TypeScript requirements
+
+- Node.js >= 16
+- TypeScript support out of the box
+
+## Go SDK
+
+The Go SDK supports Go 1.19 and higher.
+
+```bash
+go get github.com/daytonaio/daytona/libs/sdk-go
+```
+
+### Verify installation
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+)
+
+func main() {
+	fmt.Println("Daytona SDK installed successfully!")
+}
+```
+
+### Go requirements
+
+- Go >= 1.19
+- Modules support (go.mod)
+
+## Ruby SDK
+
+The Ruby SDK supports Ruby 3.2 and higher.
+
+<Tabs>
+  <Tab title="gem">
+    ```bash
+    gem install daytona
+    ```
+  </Tab>
+  <Tab title="Bundler">
+    Add to your `Gemfile`:
+    ```ruby
+    gem 'daytona'
+    ```
+    
+    Then run:
+    ```bash
+    bundle install
+    ```
+  </Tab>
+</Tabs>
+
+### Verify installation
+
+```ruby
+require 'daytona'
+
+puts "Daytona SDK installed successfully!"
+```
+
+### Ruby requirements
+
+- Ruby >= 3.2.0
+
+## Package versions
+
+All Daytona SDKs follow semantic versioning and are released in sync. You can find the latest version on:
+
+- [PyPI](https://pypi.org/project/daytona/) for Python
+- [npm](https://www.npmjs.com/package/@daytonaio/sdk) for TypeScript
+- [GitHub](https://github.com/daytonaio/daytona/releases) for Go
+- [RubyGems](https://rubygems.org/gems/daytona) for Ruby
+
+<Note>
+The SDKs are currently in active development. We recommend checking for updates regularly.
+</Note>
+
+## Development installation
+
+If you want to contribute to the SDK or use the latest development version:
+
+<CodeGroup>
+
+```bash Python
+git clone https://github.com/daytonaio/daytona.git
+cd daytona/libs/sdk-python
+pip install -e .
+```
+
+```bash TypeScript
+git clone https://github.com/daytonaio/daytona.git
+cd daytona/libs/sdk-typescript
+npm install
+npm run build
+```
+
+```bash Go
+git clone https://github.com/daytonaio/daytona.git
+cd daytona/libs/sdk-go
+go mod tidy
+```
+
+```bash Ruby
+git clone https://github.com/daytonaio/daytona.git
+cd daytona/libs/sdk-ruby
+bundle install
+```
+
+</CodeGroup>
+
+## Updating the SDK
+
+To update to the latest version:
+
+<CodeGroup>
+
+```bash Python
+pip install --upgrade daytona
+```
+
+```bash TypeScript
+npm update @daytonaio/sdk
+```
+
+```bash Go
+go get -u github.com/daytonaio/daytona/libs/sdk-go
+```
+
+```bash Ruby
+gem update daytona
+```
+
+</CodeGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Import errors in Python">
+    Make sure you're using Python 3.9 or higher:
+    ```bash
+    python --version
+    ```
+    
+    If you have multiple Python versions, try:
+    ```bash
+    python3.9 -m pip install daytona
+    ```
+  </Accordion>
+
+  <Accordion title="Module not found in TypeScript">
+    Ensure you have the correct import statement:
+    ```typescript
+    import { Daytona } from '@daytonaio/sdk'
+    ```
+    
+    And that your `package.json` includes the dependency:
+    ```json
+    {
+      "dependencies": {
+        "@daytonaio/sdk": "^0.1.0"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Go module errors">
+    Make sure your project is using Go modules:
+    ```bash
+    go mod init your-project-name
+    go get github.com/daytonaio/daytona/libs/sdk-go
+    ```
+  </Accordion>
+
+  <Accordion title="Ruby version conflicts">
+    Check your Ruby version:
+    ```bash
+    ruby --version
+    ```
+    
+    If you're using rbenv or rvm, ensure you're on Ruby 3.2+:
+    ```bash
+    rbenv install 3.2.0
+    rbenv global 3.2.0
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Set up your API key and configure the SDK
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Create your first sandbox in under 5 minutes
+  </Card>
+</CardGroup>

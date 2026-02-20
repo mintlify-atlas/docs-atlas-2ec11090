@@ -1,0 +1,901 @@
+---
+title: Go SDK
+description: Complete guide to the Daytona Go SDK for managing sandboxes and executing code
+---
+
+The Daytona Go SDK provides a strongly-typed, performant interface for interacting with Daytona Sandboxes, with native concurrency support and context-based cancellation.
+
+## Installation
+
+```bash
+go get github.com/daytonaio/daytona/libs/sdk-go
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "time"
+
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+    // Create client using environment variables
+    client, err := daytona.NewClient()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    ctx := context.Background()
+
+    // Create a sandbox
+    params := types.SnapshotParams{
+        SandboxBaseParams: types.SandboxBaseParams{
+            Language: types.CodeLanguagePython,
+        },
+    }
+
+    sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Created sandbox: %s (ID: %s)\n", sandbox.Name, sandbox.ID)
+
+    // Execute a command
+    result, err := sandbox.Process.ExecuteCommand(ctx, "echo 'Hello, World!'")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Output: %s\n", result.Result)
+
+    // Clean up
+    if err := sandbox.Delete(ctx); err != nil {
+        log.Printf("Failed to delete: %v", err)
+    }
+}
+```
+
+## Configuration
+
+### Using Environment Variables
+
+Set the following environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_API_URL="https://app.daytona.io/api"  # Optional
+export DAYTONA_TARGET="us"  # Optional
+```
+
+Then create the client:
+
+```go
+import "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+
+client, err := daytona.NewClient()
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Using Configuration Object
+
+```go
+import (
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+config := &types.DaytonaConfig{
+    APIKey: "your-api-key",
+}
+
+client, err := daytona.NewClientWithConfig(config)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+## Sandbox Management
+
+### Creating Sandboxes
+
+#### Basic Sandbox Creation
+
+```go
+import (
+    "context"
+    "time"
+    
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+ctx := context.Background()
+
+params := types.SnapshotParams{
+    SandboxBaseParams: types.SandboxBaseParams{
+        Language: types.CodeLanguagePython,
+    },
+}
+
+sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Created sandbox: %s (ID: %s)\n", sandbox.Name, sandbox.ID)
+log.Printf("State: %s\n", sandbox.State)
+```
+
+#### Customized Sandbox Creation
+
+```go
+params := types.SnapshotParams{
+    SandboxBaseParams: types.SandboxBaseParams{
+        Language: types.CodeLanguagePython,
+        EnvVars: map[string]string{
+            "PYTHON_ENV": "production",
+            "DEBUG":      "false",
+        },
+        Labels: map[string]string{
+            "project":     "my-app",
+            "environment": "production",
+        },
+        AutoStopInterval:    60,  // Auto-stop after 1 hour
+        AutoArchiveInterval: 60,  // Auto-archive after 1 hour
+        AutoDeleteInterval:  120, // Auto-delete after 2 hours
+    },
+}
+
+sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+#### Creating from Custom Image
+
+```go
+params := types.ImageParams{
+    SandboxBaseParams: types.SandboxBaseParams{
+        Language: types.CodeLanguagePython,
+    },
+    Image: &types.Image{
+        Name: "my-custom-image",
+        User: "daytona",
+    },
+}
+
+sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Streaming Build Logs
+
+```go
+import "fmt"
+
+params := types.SnapshotParams{
+    SandboxBaseParams: types.SandboxBaseParams{
+        Language: types.CodeLanguagePython,
+    },
+}
+
+// Create sandbox and get build logs channel
+sandbox, buildLogs, err := client.Create(
+    ctx,
+    params,
+    options.WithTimeout(90*time.Second),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Read build logs in real-time
+go func() {
+    for logLine := range buildLogs {
+        fmt.Printf("[BUILD] %s\n", logLine)
+    }
+}()
+
+log.Printf("Sandbox created: %s\n", sandbox.ID)
+```
+
+### Listing Sandboxes
+
+```go
+// List all sandboxes
+page := 1
+limit := 10
+result, err := client.List(ctx, nil, &page, &limit)
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Total sandboxes: %d\n", result.Total)
+for _, sb := range result.Items {
+    log.Printf("ID: %s, State: %s\n", sb.ID, sb.State)
+}
+
+// List with label filter
+labels := map[string]string{"project": "my-app"}
+result, err = client.List(ctx, labels, &page, &limit)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Getting a Sandbox
+
+```go
+// Get by ID or name
+sandbox, err := client.Get(ctx, "sandbox-id-or-name")
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Sandbox: %s (State: %s)\n", sandbox.Name, sandbox.State)
+```
+
+### Sandbox Lifecycle
+
+```go
+// Stop a sandbox
+if err := sandbox.Stop(ctx); err != nil {
+    log.Fatal(err)
+}
+log.Printf("Sandbox state: %s\n", sandbox.State)
+
+// Stop with custom timeout
+if err := sandbox.StopWithTimeout(ctx, 120*time.Second); err != nil {
+    log.Fatal(err)
+}
+
+// Start a sandbox
+if err := sandbox.Start(ctx); err != nil {
+    log.Fatal(err)
+}
+log.Printf("Sandbox state: %s\n", sandbox.State)
+
+// Delete a sandbox
+if err := sandbox.Delete(ctx); err != nil {
+    log.Fatal(err)
+}
+```
+
+### Setting Labels
+
+```go
+labels := map[string]string{
+    "environment": "production",
+    "project":     "my-app",
+    "team":        "backend",
+}
+
+if err := sandbox.SetLabels(ctx, labels); err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Labels set: %v\n", sandbox.Labels)
+```
+
+## Code Execution
+
+### Executing Commands
+
+```go
+// Simple command execution
+result, err := sandbox.Process.ExecuteCommand(ctx, "echo 'Hello, World!'")
+if err != nil {
+    log.Fatal(err)
+}
+
+if result.ExitCode != 0 {
+    log.Printf("Command failed: %s\n", result.Result)
+} else {
+    log.Printf("Output: %s\n", result.Result)
+}
+
+// Execute with working directory
+result, err = sandbox.Process.ExecuteCommand(
+    ctx,
+    "ls -la",
+    options.WithCwd("/home/daytona"),
+)
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("Files: %s\n", result.Result)
+
+// Execute with environment variables
+env := map[string]string{
+    "MY_VAR": "hello",
+}
+result, err = sandbox.Process.ExecuteCommand(
+    ctx,
+    "echo $MY_VAR",
+    options.WithEnv(env),
+)
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("Output: %s\n", result.Result)
+```
+
+### Code Interpreter
+
+The Code Interpreter provides stateful Python code execution with real-time streaming:
+
+```go
+import (
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+)
+
+// Get the code interpreter
+interpreter := sandbox.CodeInterpreter
+
+// Execute code with real-time streaming
+channels, err := interpreter.RunCode(
+    ctx,
+    `import time
+for i in range(5):
+    print(f"Step {i+1}")
+    time.sleep(0.5)
+print("Done!")`,
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Read from channels in real-time
+go func() {
+    for msg := range channels.Stdout {
+        log.Printf("[STDOUT] %s", msg.Text)
+    }
+}()
+
+go func() {
+    for msg := range channels.Stderr {
+        log.Printf("[STDERR] %s", msg.Text)
+    }
+}()
+
+go func() {
+    for execErr := range channels.Errors {
+        log.Printf("[ERROR] %s: %s\n", execErr.Name, execErr.Value)
+    }
+}()
+
+// Wait for completion
+result := <-channels.Done
+log.Printf("Execution completed: %s\n", result.Stdout)
+```
+
+### Code Execution with Timeout
+
+```go
+import "time"
+
+channels, err := interpreter.RunCode(
+    ctx,
+    `import time
+print("Starting...")
+time.sleep(10)
+print("This won't print")`,
+    options.WithInterpreterTimeout(2*time.Second),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+result := <-channels.Done
+if result.Error != nil {
+    log.Printf("Timeout error: %s\n", result.Error.Name)
+}
+```
+
+## File Operations
+
+### Uploading Files
+
+```go
+// Upload a single file from bytes
+content := []byte("Hello, World!")
+if err := sandbox.FileSystem.UploadFile(ctx, content, "/tmp/hello.txt"); err != nil {
+    log.Fatal(err)
+}
+log.Println("File uploaded")
+
+// Upload from local file
+import "os"
+
+data, err := os.ReadFile("local-file.txt")
+if err != nil {
+    log.Fatal(err)
+}
+
+if err := sandbox.FileSystem.UploadFile(ctx, data, "/tmp/remote-file.txt"); err != nil {
+    log.Fatal(err)
+}
+```
+
+### Downloading Files
+
+```go
+// Download a file
+content, err := sandbox.FileSystem.DownloadFile(ctx, "/tmp/hello.txt", nil)
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("Content: %s\n", string(content))
+
+// Download and save to local file
+import "os"
+
+content, err := sandbox.FileSystem.DownloadFile(ctx, "/tmp/data.txt", nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+if err := os.WriteFile("local-data.txt", content, 0644); err != nil {
+    log.Fatal(err)
+}
+```
+
+### File System Operations
+
+```go
+// List files in a directory
+files, err := sandbox.FileSystem.ListFiles(ctx, "/tmp")
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, file := range files {
+    log.Printf("%s: %d bytes\n", file.Name, file.Size)
+}
+
+// Create a folder
+if err := sandbox.FileSystem.CreateFolder(ctx, "/tmp/new-folder"); err != nil {
+    log.Fatal(err)
+}
+log.Println("Folder created")
+
+// Search for files
+import "github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+
+matches, err := sandbox.FileSystem.FindFiles(
+    ctx,
+    "/tmp",
+    options.WithPattern("*.txt"),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Found %d files\n", len(matches))
+for _, match := range matches {
+    log.Printf("File: %s\n", match)
+}
+```
+
+## Git Operations
+
+### Cloning Repositories
+
+```go
+import "github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+
+// Clone a public repository
+if err := sandbox.Git.Clone(
+    ctx,
+    "https://github.com/daytonaio/daytona.git",
+    "/tmp/daytona",
+); err != nil {
+    log.Fatal(err)
+}
+log.Println("Repository cloned")
+
+// Clone with authentication
+if err := sandbox.Git.Clone(
+    ctx,
+    "https://github.com/private/repo.git",
+    "/tmp/repo",
+    options.WithUsername("user"),
+    options.WithPassword("token"),
+); err != nil {
+    log.Fatal(err)
+}
+
+// Clone a specific branch
+if err := sandbox.Git.Clone(
+    ctx,
+    "https://github.com/example/repo.git",
+    "/tmp/repo",
+    options.WithBranch("develop"),
+); err != nil {
+    log.Fatal(err)
+}
+```
+
+### Git Status and Branches
+
+```go
+// Get repository status
+status, err := sandbox.Git.Status(ctx, "/tmp/repo")
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("Current branch: %s\n", status.CurrentBranch)
+log.Printf("Files changed: %d\n", len(status.FileStatus))
+
+// List branches
+branches, err := sandbox.Git.Branches(ctx, "/tmp/repo")
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, branch := range branches {
+    log.Printf("Branch: %s\n", branch)
+}
+```
+
+### Committing Changes
+
+```go
+// Add files to staging
+if err := sandbox.Git.Add(
+    ctx,
+    "/tmp/repo",
+    []string{"file1.txt", "file2.txt"},
+); err != nil {
+    log.Fatal(err)
+}
+
+// Commit changes
+if err := sandbox.Git.Commit(
+    ctx,
+    "/tmp/repo",
+    "Add new features",
+    "Your Name",
+    "your.email@example.com",
+); err != nil {
+    log.Fatal(err)
+}
+
+// Push changes
+if err := sandbox.Git.Push(
+    ctx,
+    "/tmp/repo",
+    options.WithUsername("user"),
+    options.WithPassword("token"),
+); err != nil {
+    log.Fatal(err)
+}
+```
+
+## Snapshots and Volumes
+
+### Managing Snapshots
+
+```go
+// Create a snapshot
+import (
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+params := &types.CreateSnapshotParams{
+    Name: "my-snapshot",
+    Image: &types.Image{
+        Name: "python:3.11",
+        User: "root",
+    },
+}
+
+snapshot, buildLogs, err := client.Snapshot.Create(ctx, params, 180*time.Second)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Stream build logs
+go func() {
+    for logLine := range buildLogs {
+        log.Printf("[BUILD] %s\n", logLine)
+    }
+}()
+
+log.Printf("Snapshot created: %s\n", snapshot.Name)
+
+// List snapshots
+page := 1
+limit := 10
+snapshots, err := client.Snapshot.List(ctx, &page, &limit)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, snap := range snapshots.Items {
+    log.Printf("Snapshot: %s\n", snap.Name)
+}
+
+// Delete a snapshot
+if err := client.Snapshot.Delete(ctx, snapshot); err != nil {
+    log.Fatal(err)
+}
+```
+
+### Managing Volumes
+
+```go
+// Create a volume
+volume, err := client.Volume.Create(ctx, "my-volume")
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("Volume created: %s\n", volume.Name)
+
+// List volumes
+volumes, err := client.Volume.List(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, vol := range volumes {
+    log.Printf("Volume: %s\n", vol.Name)
+}
+
+// Delete a volume
+if err := client.Volume.Delete(ctx, volume); err != nil {
+    log.Fatal(err)
+}
+```
+
+## Error Handling
+
+```go
+import (
+    "errors"
+    "log"
+)
+
+func handleSandbox() error {
+    client, err := daytona.NewClient()
+    if err != nil {
+        return fmt.Errorf("failed to create client: %w", err)
+    }
+
+    ctx := context.Background()
+    params := types.SnapshotParams{
+        SandboxBaseParams: types.SandboxBaseParams{
+            Language: types.CodeLanguagePython,
+        },
+    }
+
+    sandbox, err := client.Create(ctx, params)
+    if err != nil {
+        return fmt.Errorf("failed to create sandbox: %w", err)
+    }
+
+    defer func() {
+        if err := sandbox.Delete(ctx); err != nil {
+            log.Printf("Failed to delete sandbox: %v", err)
+        }
+    }()
+
+    result, err := sandbox.Process.ExecuteCommand(ctx, "invalid-command")
+    if err != nil {
+        return fmt.Errorf("command execution failed: %w", err)
+    }
+
+    if result.ExitCode != 0 {
+        return fmt.Errorf("command failed with exit code %d: %s", result.ExitCode, result.Result)
+    }
+
+    return nil
+}
+```
+
+## Complete Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+    "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+    // Initialize client
+    client, err := daytona.NewClient()
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+    }
+
+    ctx := context.Background()
+
+    // Create sandbox with custom configuration
+    params := types.SnapshotParams{
+        SandboxBaseParams: types.SandboxBaseParams{
+            Language: types.CodeLanguagePython,
+            EnvVars: map[string]string{
+                "ENV": "production",
+            },
+            Labels: map[string]string{
+                "project": "data-analysis",
+            },
+        },
+    }
+
+    sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+    if err != nil {
+        log.Fatalf("Failed to create sandbox: %v", err)
+    }
+
+    log.Printf("Created sandbox: %s (ID: %s)\n", sandbox.Name, sandbox.ID)
+
+    defer func() {
+        log.Println("Cleaning up...")
+        if err := sandbox.Delete(ctx); err != nil {
+            log.Printf("Failed to delete sandbox: %v", err)
+        } else {
+            log.Println("Sandbox deleted")
+        }
+    }()
+
+    // Upload a Python script
+    script := []byte(`
+import json
+
+data = {'name': 'Alice', 'age': 25}
+print(json.dumps(data))
+`)
+
+    if err := sandbox.FileSystem.UploadFile(ctx, script, "/tmp/analyze.py"); err != nil {
+        log.Fatalf("Failed to upload file: %v", err)
+    }
+
+    // Install dependencies
+    installResult, err := sandbox.Process.ExecuteCommand(
+        ctx,
+        "pip install pandas",
+    )
+    if err != nil {
+        log.Fatalf("Failed to install pandas: %v", err)
+    }
+
+    if installResult.ExitCode != 0 {
+        log.Printf("Install failed: %s\n", installResult.Result)
+        return
+    }
+
+    // Run the script
+    result, err := sandbox.Process.ExecuteCommand(
+        ctx,
+        "python /tmp/analyze.py",
+    )
+    if err != nil {
+        log.Fatalf("Failed to run script: %v", err)
+    }
+
+    if result.ExitCode != 0 {
+        log.Printf("Script failed: %s\n", result.Result)
+        return
+    }
+
+    log.Printf("Analysis result: %s\n", result.Result)
+}
+```
+
+## Best Practices
+
+### Always Use Context
+
+```go
+import "context"
+
+ctx := context.Background()
+
+// For operations with timeout
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+
+sandbox, err := client.Create(ctx, params)
+```
+
+### Always Use Defer for Cleanup
+
+```go
+sandbox, err := client.Create(ctx, params)
+if err != nil {
+    log.Fatal(err)
+}
+
+defer func() {
+    if err := sandbox.Delete(ctx); err != nil {
+        log.Printf("Failed to delete sandbox: %v", err)
+    }
+}()
+
+// Use the sandbox...
+```
+
+### Check Exit Codes
+
+```go
+result, err := sandbox.Process.ExecuteCommand(ctx, "some-command")
+if err != nil {
+    log.Printf("Command failed: %v", err)
+    return
+}
+
+if result.ExitCode != 0 {
+    log.Printf("Command exited with code %d: %s", result.ExitCode, result.Result)
+    return
+}
+
+log.Printf("Success: %s\n", result.Result)
+```
+
+### Use Goroutines for Concurrent Operations
+
+```go
+import "sync"
+
+var wg sync.WaitGroup
+
+for i := 0; i < 5; i++ {
+    wg.Add(1)
+    go func(id int) {
+        defer wg.Done()
+        
+        sandbox, err := client.Create(ctx, params)
+        if err != nil {
+            log.Printf("Failed to create sandbox %d: %v", id, err)
+            return
+        }
+        defer sandbox.Delete(ctx)
+        
+        // Use sandbox...
+    }(i)
+}
+
+wg.Wait()
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="SDK Overview" icon="book" href="/sdks/overview">
+    Compare all available SDKs
+  </Card>
+  <Card title="API Reference" icon="code" href="/tools/api">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="flask" href="https://github.com/daytonaio/daytona/tree/main/examples/go">
+    Browse Go examples on GitHub
+  </Card>
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Learn about the Python SDK
+  </Card>
+</CardGroup>

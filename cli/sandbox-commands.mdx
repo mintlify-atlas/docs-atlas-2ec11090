@@ -1,0 +1,435 @@
+---
+title: Sandbox Commands
+description: Complete reference for Daytona sandbox management commands
+---
+
+## Overview
+
+Sandbox commands allow you to create, manage, and interact with Daytona sandboxes. All sandbox subcommands are available both as `daytona sandbox [command]` and as top-level shortcuts like `daytona create`.
+
+## daytona create
+
+Create a new sandbox.
+
+### Usage
+
+```bash
+daytona create [flags]
+```
+
+### Flags
+
+#### Snapshot & Image Options
+
+- `--snapshot` - Snapshot to use for the sandbox
+- `--dockerfile`, `-f` - Path to Dockerfile for Sandbox snapshot
+- `--context`, `-c` - Files or directories to include in the build context (can be specified multiple times)
+
+**Note:** `--snapshot` and `--dockerfile`/`--context` are mutually exclusive.
+
+#### Basic Configuration
+
+- `--name` - Name of the sandbox
+- `--user` - User associated with the sandbox
+- `--env`, `-e` - Environment variables (format: `KEY=VALUE`, can be specified multiple times)
+- `--label`, `-l` - Labels (format: `KEY=VALUE`, can be specified multiple times)
+- `--public` - Make sandbox publicly accessible
+
+#### Resource Allocation
+
+- `--class` - Sandbox class type (small, medium, large)
+- `--target` - Target region (eu, us)
+- `--cpu` - CPU cores allocated to the sandbox
+- `--gpu` - GPU units allocated to the sandbox
+- `--memory` - Memory allocated to the sandbox in MB
+- `--disk` - Disk space allocated to the sandbox in GB
+
+#### Auto-Management
+
+- `--auto-stop` - Auto-stop interval in minutes (default: 15, 0 means disabled)
+- `--auto-archive` - Auto-archive interval in minutes (default: 10080, 0 means the maximum interval will be used)
+- `--auto-delete` - Auto-delete interval in minutes (negative value means disabled, 0 means delete immediately upon stopping, default: -1)
+
+#### Volumes
+
+- `--volume`, `-v` - Volumes to mount (format: `VOLUME_NAME:MOUNT_PATH`, can be specified multiple times)
+
+#### Network Security
+
+- `--network-block-all` - Block all network access for the sandbox
+- `--network-allow-list` - Comma-separated list of allowed CIDR network addresses
+
+### Examples
+
+```bash
+# Create a sandbox from a snapshot
+daytona create --snapshot ubuntu
+
+# Create a named sandbox with custom resources
+daytona create --snapshot ubuntu --name dev-env --cpu 4 --memory 8192
+
+# Create a sandbox with environment variables
+daytona create --snapshot node --env NODE_ENV=production --env PORT=3000
+
+# Create a sandbox from a Dockerfile
+daytona create --dockerfile ./Dockerfile --context ./app
+
+# Create a sandbox with mounted volumes
+daytona create --snapshot ubuntu --volume data-vol:/data --volume config:/etc/config
+
+# Create a public sandbox with labels
+daytona create --snapshot ubuntu --public --label team=backend --label env=staging
+
+# Create a sandbox with network restrictions
+daytona create --snapshot ubuntu --network-block-all --network-allow-list "10.0.0.0/8,172.16.0.0/12"
+
+# Create a sandbox with custom auto-management settings
+daytona create --snapshot ubuntu --auto-stop 30 --auto-delete 0
+```
+
+### Output
+
+When successfully created, the command displays:
+- Sandbox name
+- SSH connection command
+- Web terminal URL
+
+```
+Sandbox 'dev-env' created successfully
+Connect via SSH:         daytona ssh dev-env
+Open the Web Terminal:   https://...
+```
+
+---
+
+## daytona list
+
+List all sandboxes in your organization.
+
+### Usage
+
+```bash
+daytona list [flags]
+```
+
+### Flags
+
+- `--page`, `-p` - Page number for pagination (starting from 1, default: 1)
+- `--limit`, `-l` - Maximum number of items per page (default: 100)
+- `--format` - Output format (json, yaml)
+
+### Examples
+
+```bash
+# List all sandboxes
+daytona list
+
+# List sandboxes with pagination
+daytona list --page 2 --limit 50
+
+# Get sandbox list as JSON
+daytona list --format json
+```
+
+### Output
+
+Displays a table with:
+- Sandbox name
+- Status (Running, Stopped, etc.)
+- Created date
+- Resources (CPU, Memory, Disk)
+
+---
+
+## daytona info
+
+Get detailed information about a specific sandbox.
+
+### Usage
+
+```bash
+daytona info [SANDBOX_ID | SANDBOX_NAME]
+```
+
+### Flags
+
+- `--format` - Output format (json, yaml)
+
+### Examples
+
+```bash
+# Get sandbox info by name
+daytona info dev-env
+
+# Get sandbox info by ID
+daytona info 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+
+# Get sandbox info as JSON
+daytona info dev-env --format json
+```
+
+---
+
+## daytona start
+
+Start a stopped sandbox.
+
+### Usage
+
+```bash
+daytona start [SANDBOX_ID | SANDBOX_NAME]
+```
+
+### Examples
+
+```bash
+# Start a sandbox by name
+daytona start dev-env
+
+# Start a sandbox by ID
+daytona start 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+```
+
+### Output
+
+```
+Sandbox dev-env started
+```
+
+---
+
+## daytona stop
+
+Stop a running sandbox.
+
+### Usage
+
+```bash
+daytona stop [SANDBOX_ID | SANDBOX_NAME]
+```
+
+### Examples
+
+```bash
+# Stop a sandbox by name
+daytona stop dev-env
+
+# Stop a sandbox by ID
+daytona stop 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+```
+
+### Output
+
+```
+Sandbox dev-env stopped
+```
+
+---
+
+## daytona delete
+
+Delete one or more sandboxes.
+
+### Usage
+
+```bash
+daytona delete [SANDBOX_ID | SANDBOX_NAME] [flags]
+```
+
+### Flags
+
+- `--all`, `-a` - Delete all sandboxes
+
+### Examples
+
+```bash
+# Delete a specific sandbox
+daytona delete dev-env
+
+# Delete all sandboxes
+daytona delete --all
+```
+
+### Output
+
+```
+# Single delete
+Sandbox dev-env deleted
+
+# Delete all
+Deleted 15 sandboxes
+```
+
+---
+
+## daytona ssh
+
+Establish an SSH connection to a running sandbox.
+
+### Usage
+
+```bash
+daytona ssh [SANDBOX_ID | SANDBOX_NAME] [flags]
+```
+
+### Flags
+
+- `--expires` - SSH access token expiration time in minutes (default: 1440, which is 24 hours)
+
+### Examples
+
+```bash
+# SSH into a sandbox
+daytona ssh dev-env
+
+# SSH with custom token expiration (30 minutes)
+daytona ssh dev-env --expires 30
+```
+
+### Notes
+
+- The sandbox must be in a started state
+- An SSH access token is automatically created and used for the connection
+- The connection uses your system's SSH client
+
+---
+
+## daytona exec
+
+Execute a command in a running sandbox without opening an interactive session.
+
+### Usage
+
+```bash
+daytona exec [SANDBOX_ID | SANDBOX_NAME] -- [COMMAND] [ARGS...]
+```
+
+### Flags
+
+- `--cwd` - Working directory for command execution
+- `--timeout` - Command timeout in seconds (0 for no timeout, default: 0)
+
+### Examples
+
+```bash
+# Execute a simple command
+daytona exec dev-env -- ls -la
+
+# Execute a command with custom working directory
+daytona exec dev-env --cwd /app -- npm test
+
+# Execute a command with timeout
+daytona exec dev-env --timeout 30 -- ./long-running-script.sh
+
+# Execute multiple commands
+daytona exec dev-env -- bash -c "cd /app && npm install && npm start"
+```
+
+### Notes
+
+- The sandbox must be in a started state
+- The command output (stdout and stderr) is printed to the console
+- The exit code of the command is returned
+- Use `--` to separate sandbox identifier from the command
+
+---
+
+## daytona archive
+
+Mark a sandbox for archival.
+
+### Usage
+
+```bash
+daytona archive [SANDBOX_ID | SANDBOX_NAME]
+```
+
+### Examples
+
+```bash
+# Archive a sandbox
+daytona archive dev-env
+```
+
+### Output
+
+```
+Sandbox dev-env marked for archival
+```
+
+---
+
+## daytona preview-url
+
+Get a signed preview URL for accessing a specific port on a sandbox.
+
+### Usage
+
+```bash
+daytona preview-url [SANDBOX_ID | SANDBOX_NAME] [flags]
+```
+
+### Flags
+
+- `--port`, `-p` - Port number to get preview URL for (required)
+- `--expires` - URL expiration time in seconds (default: 3600)
+
+### Examples
+
+```bash
+# Get preview URL for port 3000
+daytona preview-url dev-env --port 3000
+
+# Get preview URL with custom expiration (2 hours)
+daytona preview-url dev-env --port 8080 --expires 7200
+```
+
+### Output
+
+The command outputs the signed URL:
+
+```
+https://preview.daytona.io/...
+```
+
+---
+
+## Common Patterns
+
+### Create and SSH
+
+Create a sandbox and immediately SSH into it:
+
+```bash
+daytona create --snapshot ubuntu --name dev && daytona ssh dev
+```
+
+### Execute Commands on Multiple Sandboxes
+
+List sandboxes and execute a command on each:
+
+```bash
+for sandbox in $(daytona list --format json | jq -r '.[].name'); do
+  daytona exec $sandbox -- apt-get update
+done
+```
+
+### Create with Full Configuration
+
+Create a production-ready sandbox with all settings:
+
+```bash
+daytona create \
+  --snapshot ubuntu \
+  --name production-api \
+  --cpu 8 \
+  --memory 16384 \
+  --disk 100 \
+  --env NODE_ENV=production \
+  --env PORT=3000 \
+  --label team=backend \
+  --label env=production \
+  --volume data:/var/lib/data \
+  --auto-stop 0 \
+  --network-allow-list "10.0.0.0/8"
+```

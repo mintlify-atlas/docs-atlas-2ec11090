@@ -1,0 +1,300 @@
+---
+title: Basic Sandbox Management
+description: Create, start, stop, and manage sandbox lifecycle
+---
+
+This example demonstrates the fundamental operations for working with sandboxes in Daytona.
+
+## What You'll Learn
+
+- Creating a new sandbox
+- Setting labels and metadata
+- Starting and stopping sandboxes
+- Retrieving sandbox information
+- Listing all sandboxes
+- Deleting sandboxes
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Python">
+```python
+from daytona import Daytona
+
+
+def main():
+    daytona = Daytona()
+
+    print("Creating sandbox")
+    sandbox = daytona.create()
+    print("Sandbox created")
+
+    _ = sandbox.set_labels(
+        {
+            "public": "true",
+        }
+    )
+
+    print("Stopping sandbox")
+    daytona.stop(sandbox)
+    print("Sandbox stopped")
+
+    print("Starting sandbox")
+    daytona.start(sandbox)
+    print("Sandbox started")
+
+    print("Getting existing sandbox")
+    existing_sandbox = daytona.get(sandbox.id)
+    print("Get existing sandbox")
+
+    response = existing_sandbox.process.exec('echo "Hello World from exec!"', cwd="/home/daytona", timeout=10)
+    if response.exit_code != 0:
+        print(f"Error: {response.exit_code} {response.result}")
+    else:
+        print(response.result)
+
+    result = daytona.list()
+    print("Total sandboxes count:", result.total)
+
+    print(f"Printing first sandbox -> id: {result.items[0].id} state: {result.items[0].state}")
+
+    print("Removing sandbox")
+    daytona.delete(sandbox)
+    print("Sandbox removed")
+
+
+if __name__ == "__main__":
+    main()
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+async function main() {
+  const daytona = new Daytona()
+
+  console.log('Creating sandbox')
+  const sandbox = await daytona.create()
+  console.log('Sandbox created')
+
+  await sandbox.setLabels({
+    public: 'true',
+  })
+
+  console.log('Stopping sandbox')
+  await sandbox.stop()
+  console.log('Sandbox stopped')
+
+  console.log('Starting sandbox')
+  await sandbox.start()
+  console.log('Sandbox started')
+
+  console.log('Getting existing sandbox')
+  const existingSandbox = await daytona.get(sandbox.id)
+  console.log('Got existing sandbox')
+
+  const response = await existingSandbox.process.executeCommand(
+    'echo "Hello World from exec!"',
+    undefined,
+    undefined,
+    10,
+  )
+  if (response.exitCode !== 0) {
+    console.error(`Error: ${response.exitCode} ${response.result}`)
+  } else {
+    console.log(response.result)
+  }
+
+  const result = await daytona.list()
+  console.log('Total sandboxes count:', result.total)
+
+  console.log(`Printing first sandbox -> id: ${result.items[0].id} state: ${result.items[0].state}`)
+
+  console.log('Deleting sandbox')
+  await sandbox.delete()
+  console.log('Sandbox deleted')
+}
+
+main().catch(console.error)
+```
+  </Tab>
+  <Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+	// Create a new Daytona client using environment variables
+	// Set DAYTONA_API_KEY before running
+	client, err := daytona.NewClient()
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Create a sandbox with Python
+	log.Println("\nCreating sandbox...")
+	params := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language: types.CodeLanguagePython,
+			EnvVars: map[string]string{
+				"EXAMPLE_VAR": "example_value",
+			},
+		},
+	}
+
+	sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+
+	log.Printf("✓ Created sandbox: %s (ID: %s)\n", sandbox.Name, sandbox.ID)
+
+	// Get sandbox info
+	homeDir, err := sandbox.GetUserHomeDir(ctx)
+	if err != nil {
+		log.Fatalf("Failed to get home directory: %v", err)
+	}
+	log.Printf("Home directory: %s\n", homeDir)
+
+	workDir, err := sandbox.GetWorkingDir(ctx)
+	if err != nil {
+		log.Fatalf("Failed to get working directory: %v", err)
+	}
+	log.Printf("Working directory: %s\n", workDir)
+
+	log.Println("Listing all sandboxes...")
+	page := 1
+	limit := 10
+	allSandboxes, err := client.List(ctx, nil, &page, &limit)
+	if err != nil {
+		log.Fatalf("Failed to list sandboxes: %v", err)
+	}
+
+	log.Printf("Total sandboxes: %d\n", allSandboxes.Total)
+	for _, sb := range allSandboxes.Items {
+		log.Printf("  - %s (State: %s)\n", sb.Name, sb.State)
+	}
+
+	// Delete the sandbox
+	log.Println("\nCleaning up...")
+	if err := sandbox.Delete(ctx); err != nil {
+		log.Fatalf("Failed to delete sandbox: %v", err)
+	}
+	log.Println("✓ Sandbox deleted")
+
+	log.Println("\n✓ All sandbox operations completed successfully!")
+}
+```
+  </Tab>
+</Tabs>
+
+## Expected Output
+
+```
+Creating sandbox
+Sandbox created
+Stopping sandbox
+Sandbox stopped
+Starting sandbox
+Sandbox started
+Getting existing sandbox
+Got existing sandbox
+Hello World from exec!
+Total sandboxes count: 1
+Printing first sandbox -> id: sandbox-abc123 state: running
+Removing sandbox
+Sandbox removed
+```
+
+## Key Concepts
+
+### Creating a Sandbox
+
+The simplest way to create a sandbox is calling `create()` with no parameters. This creates a sandbox with default settings:
+
+- Language: Python (default)
+- State: Running
+- Auto-archive: Enabled (after inactivity)
+
+### Setting Labels
+
+Labels are key-value pairs that help organize and identify sandboxes:
+
+```python
+sandbox.set_labels({
+    "public": "true",
+    "environment": "development",
+    "team": "backend"
+})
+```
+
+### Sandbox States
+
+Sandboxes can be in different states:
+- `running` - Sandbox is active and ready to use
+- `stopped` - Sandbox is paused and not consuming compute resources
+- `archived` - Sandbox is archived to save storage costs
+
+### Listing Sandboxes
+
+The `list()` method returns paginated results:
+
+<CodeGroup>
+```python Python
+result = daytona.list()
+print(f"Total: {result.total}")
+for sandbox in result.items:
+    print(f"{sandbox.id}: {sandbox.state}")
+```
+
+```typescript TypeScript
+const result = await daytona.list()
+console.log(`Total: ${result.total}`)
+for (const sandbox of result.items) {
+  console.log(`${sandbox.id}: ${sandbox.state}`)
+}
+```
+
+```go Go
+page := 1
+limit := 10
+result, err := client.List(ctx, nil, &page, &limit)
+log.Printf("Total: %d\n", result.Total)
+for _, sb := range result.Items {
+    log.Printf("%s: %s\n", sb.ID, sb.State)
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<Tip>
+**Always clean up**: Delete sandboxes when you're done to avoid unnecessary costs.
+</Tip>
+
+<Warning>
+**Stopping vs Deleting**: Stopping a sandbox preserves its state but you still pay for storage. Deleting removes everything.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="File Operations" icon="file" href="/examples/file-operations">
+    Learn how to upload and download files
+  </Card>
+  <Card title="Code Execution" icon="code" href="/examples/code-execution">
+    Execute code in your sandboxes
+  </Card>
+</CardGroup>

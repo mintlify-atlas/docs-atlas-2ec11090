@@ -1,0 +1,463 @@
+---
+title: Code Interpreter
+description: Execute Python code with stateful contexts and real-time streaming
+---
+
+The Code Interpreter provides advanced Python code execution capabilities with context isolation, streaming output, and comprehensive error handling.
+
+## Overview
+
+Daytona's Code Interpreter enables:
+- **Stateful execution** - Maintain variables and state between executions
+- **Context isolation** - Run code in isolated interpreter contexts
+- **Real-time streaming** - Stream stdout/stderr as code executes
+- **Error tracking** - Detailed error information with tracebacks
+
+<Note>
+  For other languages (TypeScript, JavaScript), use `sandbox.process.codeRun()` instead. See [Process Execution](/features/process-execution) for details.
+</Note>
+
+## Basic Execution
+
+### Simple Code Execution
+
+Execute Python code and get results:
+
+```typescript
+const result = await sandbox.codeInterpreter.runCode(`
+print("Hello from Python!")
+x = 10
+y = 20
+print(f"Sum: {x + y}")
+`);
+
+console.log(result.stdout);
+// Output:
+// Hello from Python!
+// Sum: 30
+```
+
+### Execution with Timeout
+
+Set a timeout to prevent long-running code:
+
+```typescript
+try {
+  const result = await sandbox.codeInterpreter.runCode(
+    `
+import time
+print('Starting...')
+time.sleep(10)
+print('Done!')
+    `,
+    { timeout: 5 }  // 5 seconds
+  );
+} catch (error) {
+  if (error instanceof DaytonaTimeoutError) {
+    console.log('Execution timed out');
+  }
+}
+```
+
+<ParamField path="code" type="string" required>
+  Python code to execute
+</ParamField>
+
+<ParamField path="options" type="RunCodeOptions">
+  Execution options
+  
+  <Expandable title="properties">
+    <ParamField path="timeout" type="number">
+      Timeout in seconds. Set to 0 for no timeout. Default is 10 minutes (600 seconds).
+    </ParamField>
+    
+    <ParamField path="context" type="InterpreterContext">
+      Interpreter context to run code in. If not specified, uses the default context.
+    </ParamField>
+    
+    <ParamField path="envs" type="Record<string, string>">
+      Environment variables for this execution
+    </ParamField>
+    
+    <ParamField path="onStdout" type="(msg: OutputMessage) => void">
+      Callback for stdout messages during execution
+    </ParamField>
+    
+    <ParamField path="onStderr" type="(msg: OutputMessage) => void">
+      Callback for stderr messages during execution
+    </ParamField>
+    
+    <ParamField path="onError" type="(err: ExecutionError) => void">
+      Callback for execution errors with traceback
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Stateful Execution
+
+### Default Context State
+
+Variables persist between executions in the default context:
+
+```typescript
+// First execution
+const result1 = await sandbox.codeInterpreter.runCode(`
+counter = 1
+print(f'Initialized counter = {counter}')
+`);
+
+console.log(result1.stdout); // Initialized counter = 1
+
+// Second execution - counter still exists
+const result2 = await sandbox.codeInterpreter.runCode(`
+counter += 1
+print(f'Counter after increment = {counter}')
+`);
+
+console.log(result2.stdout); // Counter after increment = 2
+```
+
+## Context Isolation
+
+### Create Isolated Context
+
+Create separate contexts for isolated execution:
+
+```typescript
+const ctx = await sandbox.codeInterpreter.createContext();
+
+try {
+  // Execute in isolated context
+  const result = await sandbox.codeInterpreter.runCode(
+    `
+value = 'stored in isolated context'
+print(f'Isolated value: {value}')
+    `,
+    { context: ctx }
+  );
+  
+  console.log(result.stdout);
+  // Output: Isolated value: stored in isolated context
+  
+  // Variable persists in same context
+  const result2 = await sandbox.codeInterpreter.runCode(
+    "print(f'Value still available: {value}')",
+    { context: ctx }
+  );
+  
+  console.log(result2.stdout);
+  // Output: Value still available: stored in isolated context
+  
+  // Variable NOT available in default context
+  const result3 = await sandbox.codeInterpreter.runCode(
+    'print(value)'
+    // No context = default context
+  );
+  
+  // This will error: NameError: name 'value' is not defined
+  
+} finally {
+  // Clean up context when done
+  await sandbox.codeInterpreter.deleteContext(ctx);
+}
+```
+
+### Context with Working Directory
+
+```typescript
+const ctx = await sandbox.codeInterpreter.createContext(
+  '/workspace/project'
+);
+
+try {
+  const result = await sandbox.codeInterpreter.runCode(
+    `
+import os
+print(f'Working directory: {os.getcwd()}')
+    `,
+    { context: ctx }
+  );
+  
+  console.log(result.stdout);
+  // Output: Working directory: /workspace/project
+  
+} finally {
+  await sandbox.codeInterpreter.deleteContext(ctx);
+}
+```
+
+### List Active Contexts
+
+```typescript
+const contexts = await sandbox.codeInterpreter.listContexts();
+
+contexts.forEach(ctx => {
+  console.log('Context ID:', ctx.id);
+  console.log('Language:', ctx.language);
+  console.log('Working Directory:', ctx.cwd);
+});
+```
+
+<ParamField path="cwd" type="string">
+  Working directory for the context. Uses sandbox working directory if omitted.
+</ParamField>
+
+## Streaming Output
+
+### Real-time Output Streaming
+
+Stream output as code executes:
+
+```typescript
+const handleStdout = (msg: OutputMessage) => {
+  process.stdout.write(`[STDOUT] ${msg.output}`);
+};
+
+const handleStderr = (msg: OutputMessage) => {
+  process.stderr.write(`[STDERR] ${msg.output}`);
+};
+
+const handleError = (err: ExecutionError) => {
+  console.error(`[ERROR] ${err.name}: ${err.value}`);
+  if (err.traceback) {
+    console.error(err.traceback);
+  }
+};
+
+const result = await sandbox.codeInterpreter.runCode(
+  `
+import time
+for i in range(5):
+    print(f'Count: {i}')
+    time.sleep(1)
+  `,
+  {
+    onStdout: handleStdout,
+    onStderr: handleStderr,
+    onError: handleError,
+    timeout: 10
+  }
+);
+```
+
+## Error Handling
+
+### Capture Execution Errors
+
+```typescript
+const result = await sandbox.codeInterpreter.runCode(
+  `
+x = 10
+y = 0
+result = x / y  # Division by zero
+  `,
+  {
+    onError: (err) => {
+      console.log('Error name:', err.name);        // ZeroDivisionError
+      console.log('Error value:', err.value);      // division by zero
+      console.log('Traceback:', err.traceback);    // Full traceback
+    }
+  }
+);
+
+if (result.error) {
+  console.log('Execution failed with error:', result.error.name);
+}
+```
+
+**Error Response:**
+
+```typescript
+interface ExecutionError {
+  name: string;       // Error type (ValueError, TypeError, etc.)
+  value: string;      // Error message
+  traceback?: string; // Full traceback
+}
+```
+
+## Environment Variables
+
+```typescript
+const result = await sandbox.codeInterpreter.runCode(
+  `
+import os
+print(f"API Key: {os.environ.get('API_KEY')}")
+print(f"Debug Mode: {os.environ.get('DEBUG')}")
+  `,
+  {
+    envs: {
+      API_KEY: 'secret-key-123',
+      DEBUG: 'true'
+    }
+  }
+);
+```
+
+## Complete Example
+
+```typescript
+import {
+  Daytona,
+  DaytonaTimeoutError,
+  ExecutionError,
+  OutputMessage
+} from '@daytonaio/sdk';
+
+const daytona = new Daytona();
+const sandbox = await daytona.create();
+
+try {
+  // Create isolated context
+  const ctx = await sandbox.codeInterpreter.createContext(
+    '/workspace'
+  );
+  
+  try {
+    console.log('=== Loading Data ===');
+    
+    // Load data in context
+    const loadResult = await sandbox.codeInterpreter.runCode(
+      `
+import json
+
+data = {
+    'users': [
+        {'name': 'Alice', 'age': 30},
+        {'name': 'Bob', 'age': 25}
+    ]
+}
+
+print(f'Loaded {len(data["users"])} users')
+      `,
+      {
+        context: ctx,
+        onStdout: (msg) => console.log(msg.output)
+      }
+    );
+    
+    console.log('\n=== Processing Data ===');
+    
+    // Process data in same context
+    const processResult = await sandbox.codeInterpreter.runCode(
+      `
+for user in data['users']:
+    print(f"{user['name']} is {user['age']} years old")
+
+avg_age = sum(u['age'] for u in data['users']) / len(data['users'])
+print(f"\nAverage age: {avg_age}")
+      `,
+      {
+        context: ctx,
+        onStdout: (msg) => console.log(msg.output),
+        onError: (err) => {
+          console.error(`Error: ${err.name}: ${err.value}`);
+          if (err.traceback) console.error(err.traceback);
+        }
+      }
+    );
+    
+    // Check for errors
+    if (processResult.error) {
+      console.error('Processing failed!');
+    } else {
+      console.log('\nProcessing completed successfully');
+    }
+    
+  } finally {
+    // Always clean up context
+    await sandbox.codeInterpreter.deleteContext(ctx);
+  }
+  
+} catch (error) {
+  if (error instanceof DaytonaTimeoutError) {
+    console.error('Execution timed out');
+  } else {
+    console.error('Execution failed:', error);
+  }
+} finally {
+  await daytona.delete(sandbox);
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use contexts for isolation">
+    Create separate contexts for unrelated execution tasks to prevent variable conflicts:
+    
+    ```typescript
+    const ctx1 = await sandbox.codeInterpreter.createContext();
+    const ctx2 = await sandbox.codeInterpreter.createContext();
+    
+    // Run independent tasks
+    await sandbox.codeInterpreter.runCode(code1, { context: ctx1 });
+    await sandbox.codeInterpreter.runCode(code2, { context: ctx2 });
+    ```
+  </Accordion>
+
+  <Accordion title="Always clean up contexts">
+    Delete contexts when finished to free resources:
+    
+    ```typescript
+    const ctx = await sandbox.codeInterpreter.createContext();
+    try {
+      // Use context
+    } finally {
+      await sandbox.codeInterpreter.deleteContext(ctx);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Set reasonable timeouts">
+    Always set timeouts to prevent runaway code execution:
+    
+    ```typescript
+    await sandbox.codeInterpreter.runCode(code, {
+      timeout: 60  // 60 seconds max
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Use streaming for long operations">
+    For long-running code, use callbacks to monitor progress:
+    
+    ```typescript
+    await sandbox.codeInterpreter.runCode(code, {
+      onStdout: (msg) => console.log('Progress:', msg.output),
+      timeout: 300
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Execution Response
+
+```typescript
+interface ExecutionResult {
+  stdout: string;           // Standard output
+  stderr: string;           // Standard error
+  error?: ExecutionError;   // Error details if execution failed
+}
+```
+
+## Limitations
+
+<Warning>
+  The Code Interpreter currently only supports **Python**. For TypeScript and JavaScript code execution, use `sandbox.process.codeRun()` instead.
+</Warning>
+
+<Warning>
+  Default timeout is 10 minutes. Set `timeout: 0` for no timeout, but be cautious of infinite loops.
+</Warning>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Process Execution" icon="terminal" href="/features/process-execution">
+    Execute code in other languages (TypeScript, JavaScript)
+  </Card>
+  
+  <Card title="PTY Sessions" icon="window" href="/features/pty-sessions">
+    Interactive terminal sessions for Python REPL
+  </Card>
+</CardGroup>

@@ -1,0 +1,348 @@
+---
+title: Snapshot Commands
+description: Complete reference for Daytona snapshot management commands
+---
+
+## Overview
+
+Snapshot commands allow you to create and manage reusable sandbox images. Snapshots define the base environment for your sandboxes, including the operating system, installed packages, and configuration.
+
+## daytona snapshot create
+
+Create a new snapshot from a Dockerfile or base image.
+
+### Usage
+
+```bash
+daytona snapshot create [SNAPSHOT] [flags]
+```
+
+### Flags
+
+#### Image Source (one required)
+
+- `--dockerfile`, `-f` - Path to Dockerfile to build
+- `--image`, `-i` - The image name for the snapshot
+
+**Note:** `--dockerfile` and `--image` are mutually exclusive.
+
+#### Build Context
+
+- `--context`, `-c` - Files or directories to include in the build context (can be specified multiple times). If not provided, context will be automatically determined from COPY/ADD commands in the Dockerfile
+
+#### Container Configuration
+
+- `--entrypoint`, `-e` - The entrypoint command for the snapshot
+  - **Note:** Cannot be used with `--dockerfile` or `--context`
+
+#### Resource Defaults
+
+- `--cpu` - CPU cores that will be allocated to sandboxes using this snapshot (default: 1)
+- `--memory` - Memory that will be allocated to sandboxes in GB (default: 1)
+- `--disk` - Disk space that will be allocated to sandboxes in GB (default: 3)
+
+#### Region
+
+- `--region` - ID of the region where the snapshot will be available (defaults to organization default region)
+
+### Examples
+
+```bash
+# Create a snapshot from a Dockerfile
+daytona snapshot create my-dev-env --dockerfile ./Dockerfile
+
+# Create a snapshot with specific build context
+daytona snapshot create my-app --dockerfile ./Dockerfile --context ./src --context ./config
+
+# Create a snapshot from a base image
+daytona snapshot create ubuntu-dev --image ubuntu:22.04
+
+# Create a snapshot with custom entrypoint
+daytona snapshot create node-app --image node:18 --entrypoint "node server.js"
+
+# Create a snapshot with custom resource defaults
+daytona snapshot create heavy-build --dockerfile ./Dockerfile --cpu 4 --memory 8 --disk 50
+
+# Create a snapshot in a specific region
+daytona snapshot create eu-snapshot --image ubuntu:22.04 --region eu-west-1
+```
+
+### Output
+
+When building from a Dockerfile, build logs are displayed in real-time:
+
+```
+[build logs...]
+Snapshot my-dev-env successfully created
+✓ Run 'daytona sandbox create --snapshot my-dev-env' to create a new sandbox using this snapshot
+```
+
+---
+
+## daytona snapshot list
+
+List all available snapshots.
+
+### Usage
+
+```bash
+daytona snapshot list [flags]
+```
+
+### Flags
+
+- `--page`, `-p` - Page number for pagination (starting from 1, default: 1)
+- `--limit`, `-l` - Maximum number of items per page (default: 100)
+- `--format` - Output format (json, yaml)
+
+### Examples
+
+```bash
+# List all snapshots
+daytona snapshot list
+
+# List with pagination
+daytona snapshot list --page 2 --limit 50
+
+# Get snapshots as JSON
+daytona snapshot list --format json
+```
+
+### Output
+
+Displays a table with:
+- Snapshot ID
+- Name
+- State (Active, Building, Failed, etc.)
+- Resources (CPU, Memory, Disk)
+- Created date
+
+---
+
+## daytona snapshot delete
+
+Delete one or more snapshots.
+
+### Usage
+
+```bash
+daytona snapshot delete [SNAPSHOT_ID] [flags]
+```
+
+### Flags
+
+- `--all`, `-a` - Delete all snapshots
+
+### Examples
+
+```bash
+# Delete a specific snapshot
+daytona snapshot delete my-dev-env
+
+# Delete a snapshot by ID
+daytona snapshot delete 7f8a9c2d-3e1f-4b6a-9c0d-5e8f7a2b3c4d
+
+# Delete all snapshots
+daytona snapshot delete --all
+```
+
+### Output
+
+```
+# Single delete
+Snapshot my-dev-env deleted
+
+# Delete all
+Deleted 5 snapshots
+```
+
+---
+
+## daytona snapshot push
+
+Push a local Docker image to Daytona as a snapshot.
+
+### Usage
+
+```bash
+daytona snapshot push [IMAGE] [flags]
+```
+
+### Flags
+
+- `--name`, `-n` - Specify the Snapshot name (required)
+- `--entrypoint`, `-e` - The entrypoint command for the image
+- `--cpu` - CPU cores that will be allocated to sandboxes (default: 1)
+- `--memory` - Memory that will be allocated to sandboxes in GB (default: 1)
+- `--disk` - Disk space that will be allocated to sandboxes in GB (default: 3)
+- `--region` - ID of the region where the snapshot will be available
+
+### Examples
+
+```bash
+# Push a local image
+daytona snapshot push my-app:latest --name my-app-snapshot
+
+# Push with custom entrypoint
+daytona snapshot push node-app:v1.0 --name node-snapshot --entrypoint "npm start"
+
+# Push with custom resource defaults
+daytona snapshot push heavy-app:latest --name heavy-snapshot --cpu 4 --memory 8 --disk 50
+
+# Push to a specific region
+daytona snapshot push my-image:latest --name eu-snapshot --region eu-west-1
+```
+
+### Requirements
+
+- Docker must be installed and running locally
+- The image must exist locally (use `docker images` to verify)
+- The image must be compatible with AMD architecture (x86_64)
+
+### Notes
+
+- The image is pushed to Daytona's registry with a timestamp-based tag
+- The command waits until the image is validated and the snapshot is active
+- Use `daytona snapshot create` with `--dockerfile` for building images securely on Daytona's infrastructure
+
+### Output
+
+```
+[push progress...]
+Successfully pushed my-app:latest to Daytona
+✓ Use 'my-app-snapshot' to create a new sandbox using this snapshot
+```
+
+---
+
+## Common Patterns
+
+### Create Snapshot from Dockerfile and Use It
+
+```bash
+# Create the snapshot
+daytona snapshot create my-env --dockerfile ./Dockerfile
+
+# Create a sandbox from it
+daytona create --snapshot my-env --name dev-sandbox
+```
+
+### Push Local Development Image
+
+```bash
+# Build image locally
+docker build -t my-dev-env:latest .
+
+# Push to Daytona
+daytona snapshot push my-dev-env:latest --name my-dev-snapshot
+
+# Create sandbox from it
+daytona create --snapshot my-dev-snapshot
+```
+
+### Create Snapshot with Multi-file Context
+
+```bash
+# Include specific files and directories
+daytona snapshot create web-app \
+  --dockerfile ./docker/Dockerfile \
+  --context ./src \
+  --context ./public \
+  --context ./package.json \
+  --context ./package-lock.json
+```
+
+### Create High-Performance Snapshot
+
+```bash
+# Create snapshot with generous resource defaults
+daytona snapshot create ml-snapshot \
+  --dockerfile ./Dockerfile.ml \
+  --cpu 8 \
+  --memory 32 \
+  --disk 100 \
+  --region us-east-1
+```
+
+### List and Clean Up Old Snapshots
+
+```bash
+# List all snapshots
+daytona snapshot list
+
+# Delete specific old snapshots
+daytona snapshot delete old-snapshot-1
+daytona snapshot delete old-snapshot-2
+
+# Or delete all (use with caution)
+daytona snapshot delete --all
+```
+
+---
+
+## Dockerfile Best Practices
+
+When creating snapshots from Dockerfiles:
+
+### Use Official Base Images
+
+```dockerfile
+FROM ubuntu:22.04
+# or
+FROM node:18-alpine
+```
+
+### Install Common Development Tools
+
+```dockerfile
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    wget \
+    vim \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+### Set Up Working Directory
+
+```dockerfile
+WORKDIR /workspace
+```
+
+### Configure User Permissions
+
+```dockerfile
+RUN useradd -m -s /bin/bash developer
+USER developer
+```
+
+### Example Development Snapshot
+
+```dockerfile
+FROM ubuntu:22.04
+
+# Install development tools
+RUN apt-get update && apt-get install -y \
+    git curl wget vim nano \
+    build-essential \
+    python3 python3-pip \
+    nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create workspace
+WORKDIR /workspace
+
+# Set up user
+RUN useradd -m -s /bin/bash developer && \
+    chown -R developer:developer /workspace
+USER developer
+
+CMD ["/bin/bash"]
+```
+
+Create the snapshot:
+
+```bash
+daytona snapshot create full-dev-env --dockerfile ./Dockerfile
+```

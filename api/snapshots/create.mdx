@@ -1,0 +1,64 @@
+---
+title: 'Create Snapshot'
+openapi: 'POST /snapshots'
+---
+
+Create a new snapshot with specified configuration including image name, resources, and build information.
+
+## Description
+
+Snapshots allow you to capture a configured environment that can be reused to create sandboxes. When creating a snapshot, you can specify:
+
+- Image name and entrypoint
+- Resource allocation (CPU, GPU, memory, disk)
+- Build information
+- Region availability
+- Whether the snapshot is general (available to all users)
+
+## Request Body
+
+### Required Fields
+
+- `name` - The name of the snapshot
+
+### Optional Fields
+
+- `imageName` - The image name of the snapshot (e.g., `ubuntu:22.04`)
+- `entrypoint` - The entrypoint command for the snapshot (array of strings)
+- `general` - Whether the snapshot is general (boolean)
+- `cpu` - CPU cores allocated to the resulting sandbox (integer)
+- `gpu` - GPU units allocated to the resulting sandbox (integer)
+- `memory` - Memory allocated to the resulting sandbox in GB (integer)
+- `disk` - Disk space allocated to the sandbox in GB (integer)
+- `buildInfo` - Build information for the snapshot
+- `regionId` - ID of the region where the snapshot will be available (defaults to organization default region)
+
+## Example Request
+
+```bash
+curl -X POST "https://api.daytona.io/snapshots" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ubuntu-dev-environment",
+    "imageName": "ubuntu:22.04",
+    "cpu": 4,
+    "memory": 8,
+    "disk": 100,
+    "general": false
+  }'
+```
+
+## Response
+
+Returns the created snapshot object with:
+
+- Snapshot ID
+- State (e.g., `building`, `active`)
+- Resource configuration
+- Timestamps
+- Region IDs where the snapshot is available
+
+## Error Responses
+
+- `400` - Bad request (e.g., snapshots with tag `:latest` are not allowed)

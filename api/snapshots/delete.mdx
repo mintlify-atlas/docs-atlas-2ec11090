@@ -1,0 +1,41 @@
+---
+title: 'Delete Snapshot'
+openapi: 'DELETE /snapshots/{id}'
+---
+
+Delete a snapshot by ID.
+
+## Description
+
+Permanently delete a snapshot. This action cannot be undone. Any sandboxes using this snapshot will not be affected, but new sandboxes cannot be created from the deleted snapshot.
+
+## Path Parameters
+
+- `id` - Snapshot ID (required)
+
+## Example Request
+
+```bash
+curl -X DELETE "https://api.daytona.io/snapshots/snap_abc123" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Response
+
+Returns a 200 status code on successful deletion.
+
+## Important Notes
+
+<Warning>
+  Deleting a snapshot is a permanent action and cannot be undone.
+</Warning>
+
+- Existing sandboxes created from this snapshot will continue to function
+- New sandboxes cannot be created from the deleted snapshot
+- The snapshot will be removed from all regions where it was available
+
+## Use Cases
+
+- Removing outdated or unused snapshots
+- Cleaning up test snapshots
+- Managing storage by removing large, unnecessary snapshots

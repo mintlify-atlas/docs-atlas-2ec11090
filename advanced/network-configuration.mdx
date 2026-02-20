@@ -1,0 +1,370 @@
+---
+title: Network Configuration
+description: Configure network settings, port forwarding, and previews for Daytona sandboxes
+---
+
+## Overview
+
+Daytona provides flexible network configuration options including network isolation, allow lists, and port preview functionality for accessing services running in sandboxes.
+
+## Network Security
+
+### Block All Network Access
+
+Prevent sandboxes from accessing external networks:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+// Create sandbox with all network access blocked
+const sandbox = await daytona.create({
+  networkBlockAll: true
+})
+
+console.log(`Network blocked: ${sandbox.networkBlockAll}`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+
+# Create sandbox with all network access blocked
+sandbox = daytona.create(network_block_all=True)
+
+print(f'Network blocked: {sandbox.network_block_all}')
+```
+</CodeGroup>
+
+### Network Allow List
+
+Allow access to specific CIDR network ranges:
+
+<CodeGroup>
+```typescript TypeScript
+// Allow access to specific IP ranges
+const sandbox = await daytona.create({
+  networkAllowList: '192.168.1.0/16,10.0.0.0/24'
+})
+
+console.log(`Network allow list: ${sandbox.networkAllowList}`)
+```
+
+```python Python
+# Allow access to specific IP ranges
+sandbox = daytona.create(
+    network_allow_list='192.168.1.0/16,10.0.0.0/24'
+)
+
+print(f'Network allow list: {sandbox.network_allow_list}')
+```
+</CodeGroup>
+
+### Default Network Behavior
+
+By default, sandboxes have full network access:
+
+<CodeGroup>
+```typescript TypeScript
+// Default: full network access
+const sandbox = await daytona.create()
+
+console.log(`Network blocked: ${sandbox.networkBlockAll}`)  // false
+console.log(`Allow list: ${sandbox.networkAllowList}`)      // undefined
+```
+
+```python Python
+# Default: full network access
+sandbox = daytona.create()
+
+print(f'Network blocked: {sandbox.network_block_all}')  # False
+print(f'Allow list: {sandbox.network_allow_list}')      # None
+```
+</CodeGroup>
+
+## Port Previews
+
+Port previews allow you to access web services running inside sandboxes through secure URLs.
+
+### Get Preview URL
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+const sandbox = await daytona.create()
+
+// Start a web server in the sandbox
+await sandbox.process.executeCommand('python -m http.server 8000')
+
+// Get preview link for port 8000
+const preview = await sandbox.getPreviewLink(8000)
+
+console.log(`Preview URL: ${preview.url}`)
+console.log(`Token: ${preview.token}`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+sandbox = daytona.create()
+
+# Start a web server in the sandbox
+sandbox.process.execute_command('python -m http.server 8000')
+
+# Get preview link for port 8000
+preview = sandbox.get_preview_link(8000)
+
+print(f'Preview URL: {preview.url}')
+print(f'Token: {preview.token}')
+```
+</CodeGroup>
+
+### Public vs Private Previews
+
+Control whether preview links are publicly accessible:
+
+<CodeGroup>
+```typescript TypeScript
+// Create public sandbox (preview links accessible without auth)
+const publicSandbox = await daytona.create({
+  public: true
+})
+
+const publicPreview = await publicSandbox.getPreviewLink(8000)
+console.log(`Public URL: ${publicPreview.url}`)  // No token required
+
+// Create private sandbox (preview links require token)
+const privateSandbox = await daytona.create({
+  public: false
+})
+
+const privatePreview = await privateSandbox.getPreviewLink(8000)
+console.log(`Private URL: ${privatePreview.url}`)
+console.log(`Token required: ${privatePreview.token}`)
+```
+
+```python Python
+# Create public sandbox (preview links accessible without auth)
+public_sandbox = daytona.create(public=True)
+
+public_preview = public_sandbox.get_preview_link(8000)
+print(f'Public URL: {public_preview.url}')  # No token required
+
+# Create private sandbox (preview links require token)
+private_sandbox = daytona.create(public=False)
+
+private_preview = private_sandbox.get_preview_link(8000)
+print(f'Private URL: {private_preview.url}')
+print(f'Token required: {private_preview.token}')
+```
+</CodeGroup>
+
+### Set Sandbox Visibility
+
+Change the public/private status after creation:
+
+<CodeGroup>
+```typescript TypeScript
+const sandbox = await daytona.create({ public: false })
+
+// Make sandbox public
+await sandbox.setPublic(true)
+await sandbox.refreshData()
+console.log(`Is public: ${sandbox.public}`)  // true
+
+// Make sandbox private again
+await sandbox.setPublic(false)
+await sandbox.refreshData()
+console.log(`Is public: ${sandbox.public}`)  // false
+```
+
+```python Python
+sandbox = daytona.create(public=False)
+
+# Make sandbox public
+sandbox.set_public(True)
+sandbox.refresh_data()
+print(f'Is public: {sandbox.public}')  # True
+
+# Make sandbox private again
+sandbox.set_public(False)
+sandbox.refresh_data()
+print(f'Is public: {sandbox.public}')  # False
+```
+</CodeGroup>
+
+## Network Configuration Examples
+
+### Isolated Development Environment
+
+Create a completely isolated sandbox for secure code execution:
+
+<CodeGroup>
+```typescript TypeScript
+const isolatedSandbox = await daytona.create({
+  networkBlockAll: true,
+  public: false,
+  labels: {
+    purpose: 'secure-execution',
+    network: 'isolated'
+  }
+})
+
+// This sandbox cannot access external networks
+```
+
+```python Python
+isolated_sandbox = daytona.create(
+    network_block_all=True,
+    public=False,
+    labels={
+        'purpose': 'secure-execution',
+        'network': 'isolated'
+    }
+)
+
+# This sandbox cannot access external networks
+```
+</CodeGroup>
+
+### Internal API Access
+
+Allow access only to internal services:
+
+<CodeGroup>
+```typescript TypeScript
+const apiSandbox = await daytona.create({
+  networkAllowList: '10.0.0.0/8,172.16.0.0/12',  // Internal IP ranges
+  labels: {
+    purpose: 'api-testing',
+    network: 'internal-only'
+  }
+})
+```
+
+```python Python
+api_sandbox = daytona.create(
+    network_allow_list='10.0.0.0/8,172.16.0.0/12',  # Internal IP ranges
+    labels={
+        'purpose': 'api-testing',
+        'network': 'internal-only'
+    }
+)
+```
+</CodeGroup>
+
+### Web Application with Preview
+
+Develop and preview a web application:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+// Create sandbox for web development
+const webSandbox = await daytona.create({
+  public: true,  // Public previews for easy sharing
+  labels: {
+    app: 'web-frontend',
+    team: 'engineering'
+  }
+})
+
+// Start development server
+await webSandbox.process.executeCommand(
+  'npm install && npm run dev',
+  '/app'
+)
+
+// Get preview URL for the app
+const preview = await webSandbox.getPreviewLink(3000)
+console.log(`App preview: ${preview.url}`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+
+# Create sandbox for web development
+web_sandbox = daytona.create(
+    public=True,  # Public previews for easy sharing
+    labels={
+        'app': 'web-frontend',
+        'team': 'engineering'
+    }
+)
+
+# Start development server
+web_sandbox.process.execute_command(
+    'npm install && npm run dev',
+    '/app'
+)
+
+# Get preview URL for the app
+preview = web_sandbox.get_preview_link(3000)
+print(f'App preview: {preview.url}')
+```
+</CodeGroup>
+
+## Advanced Port Management
+
+### Multiple Port Previews
+
+<CodeGroup>
+```typescript TypeScript
+// Get preview links for multiple ports
+const frontendPreview = await sandbox.getPreviewLink(3000)
+const backendPreview = await sandbox.getPreviewLink(8000)
+const dbAdminPreview = await sandbox.getPreviewLink(5050)
+
+console.log(`Frontend: ${frontendPreview.url}`)
+console.log(`Backend: ${backendPreview.url}`)
+console.log(`DB Admin: ${dbAdminPreview.url}`)
+```
+
+```python Python
+# Get preview links for multiple ports
+frontend_preview = sandbox.get_preview_link(3000)
+backend_preview = sandbox.get_preview_link(8000)
+db_admin_preview = sandbox.get_preview_link(5050)
+
+print(f'Frontend: {frontend_preview.url}')
+print(f'Backend: {backend_preview.url}')
+print(f'DB Admin: {db_admin_preview.url}')
+```
+</CodeGroup>
+
+## Security Best Practices
+
+1. **Use network isolation for untrusted code**: Set `networkBlockAll: true` when running untrusted or user-submitted code.
+
+2. **Restrict API access**: Use `networkAllowList` to limit access to only required internal services.
+
+3. **Private by default**: Create sandboxes with `public: false` unless public access is required.
+
+4. **Secure preview tokens**: For private sandboxes, treat preview tokens as sensitive credentials.
+
+5. **Monitor network usage**: Use labels to track and organize sandboxes by network configuration.
+
+## Network Configuration Reference
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `networkBlockAll` | `boolean` | `false` | Block all outbound network access |
+| `networkAllowList` | `string` | `undefined` | Comma-separated CIDR ranges to allow |
+| `public` | `boolean` | `false` | Make preview links publicly accessible |
+
+## Related
+
+- [Custom Images](/advanced/custom-images) - Configure sandbox images
+- [Auto Lifecycle](/advanced/auto-lifecycle) - Automatic sandbox cleanup
+- [Monitoring](/advanced/monitoring) - Track sandbox metrics

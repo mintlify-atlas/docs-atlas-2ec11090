@@ -1,0 +1,671 @@
+---
+title: TypeScript SDK
+description: Complete guide to the Daytona TypeScript/JavaScript SDK for managing sandboxes and executing code
+---
+
+The Daytona TypeScript SDK provides a fully typed interface for interacting with Daytona Sandboxes, enabling sandbox management, code execution, file operations, and more.
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm install @daytonaio/sdk
+```
+
+```bash yarn
+yarn add @daytonaio/sdk
+```
+
+```bash pnpm
+pnpm add @daytonaio/sdk
+```
+
+```bash bun
+bun add @daytonaio/sdk
+```
+</CodeGroup>
+
+## Quick Start
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+// Initialize using environment variables
+const daytona = new Daytona()
+
+// Create a sandbox
+const sandbox = await daytona.create()
+
+// Run code in the sandbox
+const response = await sandbox.process.codeRun('console.log("Hello World!")')
+console.log(response.result)
+
+// Clean up when done
+await daytona.delete(sandbox)
+```
+
+## Configuration
+
+### Using Environment Variables
+
+Set the following environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_API_URL="https://app.daytona.io/api"  # Optional
+export DAYTONA_TARGET="us"  # Optional
+```
+
+Then initialize the client:
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+```
+
+### Using Configuration Object
+
+```typescript
+import { Daytona, DaytonaConfig } from '@daytonaio/sdk'
+
+const config: DaytonaConfig = {
+  apiKey: 'your-api-key',
+  apiUrl: 'https://app.daytona.io/api',
+  target: 'us',
+}
+
+const daytona = new Daytona(config)
+```
+
+## Sandbox Management
+
+### Creating Sandboxes
+
+#### Basic Sandbox Creation
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+const sandbox = await daytona.create()
+
+console.log(`Created sandbox: ${sandbox.id}`)
+console.log(`State: ${sandbox.state}`)
+```
+
+#### Customized Sandbox Creation
+
+```typescript
+import { Daytona, CodeLanguage } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+const sandbox = await daytona.create({
+  language: CodeLanguage.TYPESCRIPT,
+  envVars: { NODE_ENV: 'development' },
+  autoStopInterval: 60, // Auto-stop after 1 hour of inactivity
+  autoArchiveInterval: 60, // Auto-archive after 1 hour of being stopped
+  autoDeleteInterval: 120, // Auto-delete after 2 hours of being stopped
+  labels: { project: 'my-app', environment: 'dev' },
+})
+```
+
+### Listing Sandboxes
+
+```typescript
+// List all sandboxes
+const result = await daytona.list()
+console.log(`Total sandboxes: ${result.total}`)
+
+for (const sandbox of result.items) {
+  console.log(`ID: ${sandbox.id}, State: ${sandbox.state}`)
+}
+
+// List with pagination
+const paginatedResult = await daytona.list({ page: 1, limit: 10 })
+```
+
+### Getting a Sandbox
+
+```typescript
+// Get by ID
+const sandbox = await daytona.get('sandbox-id')
+
+// Get by name
+const sandbox = await daytona.get('sandbox-name')
+```
+
+### Sandbox Lifecycle
+
+```typescript
+// Stop a sandbox
+await sandbox.stop()
+console.log(`Sandbox state: ${sandbox.state}`) // 'stopped'
+
+// Start a sandbox
+await sandbox.start()
+console.log(`Sandbox state: ${sandbox.state}`) // 'started'
+
+// Delete a sandbox
+await sandbox.delete()
+```
+
+### Setting Labels
+
+```typescript
+await sandbox.setLabels({
+  environment: 'development',
+  project: 'my-app',
+  public: 'true',
+})
+
+console.log(`Labels:`, sandbox.labels)
+```
+
+## Code Execution
+
+### Running TypeScript/JavaScript Code
+
+```typescript
+// Simple code execution
+const response = await sandbox.process.codeRun('console.log("Hello, World!")')
+console.log(response.result)
+
+// Multi-line code
+const code = `
+const x = 10
+const y = 20
+console.log(\`Sum: \${x + y}\`)
+`
+
+const response = await sandbox.process.codeRun(code)
+console.log(response.result) // Output: Sum: 30
+```
+
+### Executing Shell Commands
+
+```typescript
+// Execute a command
+const response = await sandbox.process.executeCommand('echo "Hello, World!"')
+if (response.exitCode === 0) {
+  console.log(response.result)
+} else {
+  console.error(`Error: ${response.result}`)
+}
+
+// Execute with working directory and timeout
+const response = await sandbox.process.executeCommand(
+  'ls -la',
+  '/home/daytona',
+  undefined,
+  10 // timeout in seconds
+)
+console.log(response.result)
+```
+
+### Code Interpreter (Stateful Execution)
+
+```typescript
+// Create a stateful code interpreter session
+const interpreter = sandbox.codeInterpreter
+
+// Execute code with real-time streaming
+const channels = await interpreter.runCode(`
+import time
+for i in range(5):
+    print(f"Step {i+1}")
+    time.sleep(0.5)
+`)
+
+// Read real-time output
+for await (const msg of channels.stdout) {
+  console.log(`[STDOUT] ${msg.text}`)
+}
+
+// Wait for completion
+const result = await channels.done
+console.log(`Final output: ${result.stdout}`)
+```
+
+## File Operations
+
+### Uploading Files
+
+```typescript
+// Upload a single file from buffer
+const content = Buffer.from('Hello, World!')
+await sandbox.fs.uploadFile(content, '/tmp/hello.txt')
+
+// Upload a file from local path
+await sandbox.fs.uploadFiles([
+  {
+    source: 'local-file.txt',
+    destination: '/tmp/remote-file.txt',
+  },
+])
+
+// Upload multiple files
+await sandbox.fs.uploadFiles([
+  {
+    source: 'file1.txt',
+    destination: '/tmp/file1.txt',
+  },
+  {
+    source: Buffer.from('content'),
+    destination: '/tmp/file2.txt',
+  },
+])
+```
+
+### Downloading Files
+
+```typescript
+// Download a single file to memory
+const content = await sandbox.fs.downloadFile('/tmp/hello.txt')
+console.log(content.toString('utf-8'))
+
+// Download multiple files
+const results = await sandbox.fs.downloadFiles([
+  {
+    source: '/tmp/file1.txt',
+    destination: 'local-file1.txt',
+  },
+  {
+    source: '/tmp/file2.txt', // To memory
+  },
+])
+
+for (const result of results) {
+  if (result.error) {
+    console.error(`Error: ${result.error}`)
+  } else if (typeof result.result === 'string') {
+    console.log(`Downloaded to: ${result.result}`)
+  } else {
+    console.log(`Downloaded to memory: ${result.result?.length} bytes`)
+  }
+}
+```
+
+### File System Operations
+
+```typescript
+// List files in a directory
+const files = await sandbox.fs.listFiles('/tmp')
+for (const file of files) {
+  console.log(`${file.name}: ${file.size} bytes`)
+}
+
+// Create a folder
+await sandbox.fs.createFolder('/tmp/new-folder', '755')
+
+// Search for files
+const matches = await sandbox.fs.searchFiles('/tmp', '*.txt')
+console.log(`Found ${matches.files.length} files`)
+for (const file of matches.files) {
+  console.log(file)
+}
+
+// Replace content in files
+await sandbox.fs.replaceInFiles(
+  ['/tmp/config.json'],
+  '"debug": true',
+  '"debug": false'
+)
+```
+
+## Git Operations
+
+### Cloning Repositories
+
+```typescript
+// Clone a public repository
+await sandbox.git.clone(
+  'https://github.com/daytonaio/daytona.git',
+  '/tmp/daytona'
+)
+
+// Clone with authentication
+await sandbox.git.clone(
+  'https://github.com/private/repo.git',
+  '/tmp/repo',
+  undefined, // commitId
+  undefined, // branch
+  'user',
+  'token'
+)
+
+// Clone a specific branch
+await sandbox.git.clone(
+  'https://github.com/example/repo.git',
+  '/tmp/repo',
+  undefined, // commitId
+  'develop'
+)
+```
+
+### Git Status and Branches
+
+```typescript
+// Get repository status
+const status = await sandbox.git.status('/tmp/repo')
+console.log(`Current branch: ${status.currentBranch}`)
+console.log(`Files changed: ${status.fileStatus.length}`)
+
+// List branches
+const branches = await sandbox.git.branches('/tmp/repo')
+for (const branch of branches) {
+  console.log(`Branch: ${branch}`)
+}
+```
+
+### Committing Changes
+
+```typescript
+// Add files
+await sandbox.git.add('/tmp/repo', ['file1.txt', 'file2.txt'])
+
+// Commit changes
+await sandbox.git.commit(
+  '/tmp/repo',
+  'Add new features',
+  'Your Name',
+  'your.email@example.com'
+)
+
+// Push changes
+await sandbox.git.push(
+  '/tmp/repo',
+  'user',
+  'token'
+)
+```
+
+## Language Server Protocol
+
+### Starting an LSP Server
+
+```typescript
+// Create and start a TypeScript LSP server
+const lsp = await sandbox.createLspServer('typescript', '/workspace/project')
+await lsp.start()
+
+// Notify LSP about opened file
+await lsp.didOpen('/workspace/project/src/index.ts')
+```
+
+### Code Intelligence
+
+```typescript
+// Get document symbols
+const symbols = await lsp.documentSymbols('/workspace/project/src/index.ts')
+for (const symbol of symbols) {
+  console.log(`${symbol.name} (${symbol.kind})`)
+}
+
+// Get completions
+const completions = await lsp.completions(
+  '/workspace/project/src/index.ts',
+  { line: 10, character: 15 }
+)
+for (const item of completions) {
+  console.log(`${item.label}: ${item.detail}`)
+}
+
+// Go to definition
+const definition = await lsp.definition(
+  '/workspace/project/src/index.ts',
+  { line: 5, character: 10 }
+)
+console.log(`Definition at:`, definition)
+```
+
+### Stopping LSP Server
+
+```typescript
+// Stop the LSP server
+await lsp.stop()
+```
+
+## Error Handling
+
+```typescript
+import {
+  Daytona,
+  DaytonaError,
+  DaytonaNotFoundError,
+  DaytonaRateLimitError,
+} from '@daytonaio/sdk'
+
+try {
+  const daytona = new Daytona()
+  const sandbox = await daytona.create()
+
+  // Execute code that might fail
+  const response = await sandbox.process.executeCommand('invalid-command')
+  if (response.exitCode !== 0) {
+    console.error(`Command failed: ${response.result}`)
+  }
+
+  await daytona.delete(sandbox)
+} catch (error) {
+  if (error instanceof DaytonaNotFoundError) {
+    console.error(`Resource not found: ${error.message}`)
+  } else if (error instanceof DaytonaRateLimitError) {
+    console.error(`Rate limit exceeded: ${error.message}`)
+  } else if (error instanceof DaytonaError) {
+    console.error(`Daytona error: ${error.message}`)
+  } else {
+    console.error(`Unexpected error:`, error)
+  }
+}
+```
+
+## Complete Example
+
+```typescript
+import { Daytona, CodeLanguage } from '@daytonaio/sdk'
+import * as fs from 'fs'
+
+async function main() {
+  // Initialize client
+  const daytona = new Daytona()
+
+  // Create a sandbox with custom configuration
+  const sandbox = await daytona.create({
+    language: CodeLanguage.TYPESCRIPT,
+    envVars: { NODE_ENV: 'production' },
+    labels: { project: 'data-analysis' },
+  })
+
+  console.log(`Created sandbox: ${sandbox.id}`)
+
+  try {
+    // Upload a TypeScript script
+    const script = `
+import * as fs from 'fs'
+
+interface User {
+  name: string
+  age: number
+}
+
+const users: User[] = [
+  { name: 'Alice', age: 25 },
+  { name: 'Bob', age: 30 },
+]
+
+console.log(JSON.stringify(users))
+`
+    await sandbox.fs.uploadFile(Buffer.from(script), '/tmp/analyze.ts')
+
+    // Install TypeScript
+    const installResult = await sandbox.process.executeCommand(
+      'npm install -g typescript @types/node'
+    )
+    if (installResult.exitCode !== 0) {
+      console.error(`Failed to install TypeScript: ${installResult.result}`)
+      return
+    }
+
+    // Run the script
+    const result = await sandbox.process.executeCommand(
+      'ts-node /tmp/analyze.ts'
+    )
+    console.log(`Analysis result: ${result.result}`)
+  } finally {
+    // Cleanup
+    await daytona.delete(sandbox)
+    console.log('Sandbox deleted')
+  }
+}
+
+main().catch(console.error)
+```
+
+## API Reference
+
+### Daytona Class
+
+#### Methods
+
+- `create(params?)` - Create a new sandbox
+- `get(sandboxIdOrName)` - Get a sandbox by ID or name
+- `list(options?)` - List sandboxes with pagination
+- `delete(sandbox)` - Delete a sandbox
+
+### Sandbox Class
+
+#### Properties
+
+- `fs: FileSystem` - File system operations interface
+- `git: Git` - Git operations interface
+- `process: Process` - Process execution interface
+- `codeInterpreter: CodeInterpreter` - Code interpreter interface
+- `computerUse: ComputerUse` - Computer use operations for desktop automation
+- `id: string` - Sandbox ID
+- `state: SandboxState` - Current state
+- `labels: Record<string, string>` - Custom labels
+- `env: Record<string, string>` - Environment variables
+
+#### Methods
+
+- `setLabels(labels)` - Set custom labels
+- `getPreviewLink(port)` - Get port preview URL
+- `start()` - Start the sandbox
+- `stop()` - Stop the sandbox
+- `delete()` - Delete the sandbox
+- `createLspServer(language, workingDir)` - Create an LSP server
+
+### Process Class
+
+#### Methods
+
+- `executeCommand(command, cwd?, env?, timeout?)` - Execute a shell command
+- `codeRun(code, params?)` - Execute code directly
+
+### FileSystem Class
+
+#### Methods
+
+- `uploadFile(content, path)` - Upload a file
+- `uploadFiles(files)` - Upload multiple files
+- `downloadFile(path)` - Download a file
+- `downloadFiles(requests)` - Download multiple files
+- `listFiles(path)` - List files in a directory
+- `createFolder(path, mode?)` - Create a folder
+- `searchFiles(root, pattern)` - Search for files
+- `replaceInFiles(files, oldStr, newStr)` - Replace content in files
+
+### Git Class
+
+#### Methods
+
+- `clone(url, path, commitId?, branch?, username?, password?)` - Clone a repository
+- `status(path)` - Get repository status
+- `branches(path)` - List branches
+- `add(path, files)` - Add files to staging
+- `commit(path, message, author, email)` - Commit changes
+- `push(path, username?, password?)` - Push changes
+
+## Best Practices
+
+### Always Use Try-Finally for Cleanup
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+async function processData() {
+  const daytona = new Daytona()
+  const sandbox = await daytona.create()
+
+  try {
+    // Do work with sandbox
+    const result = await sandbox.process.codeRun('console.log("Hello")')
+    return result
+  } finally {
+    // Always cleanup
+    await daytona.delete(sandbox)
+  }
+}
+```
+
+### Check Exit Codes
+
+```typescript
+const response = await sandbox.process.executeCommand('some-command')
+if (response.exitCode !== 0) {
+  console.error(`Command failed: ${response.result}`)
+  // Handle error
+} else {
+  console.log(`Success: ${response.result}`)
+}
+```
+
+### Use TypeScript for Type Safety
+
+```typescript
+import { Daytona, Sandbox, CodeLanguage } from '@daytonaio/sdk'
+
+async function createTypedSandbox(daytona: Daytona): Promise<Sandbox> {
+  return await daytona.create({
+    language: CodeLanguage.TYPESCRIPT,
+  })
+}
+```
+
+### Handle Promise Rejections
+
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+// Always handle promise rejections
+daytona
+  .create()
+  .then((sandbox) => {
+    // Use sandbox
+    return sandbox.process.codeRun('console.log("Hello")')
+  })
+  .catch((error) => {
+    console.error('Error:', error)
+  })
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="SDK Overview" icon="book" href="/sdks/overview">
+    Compare all available SDKs
+  </Card>
+  <Card title="API Reference" icon="code" href="/tools/api">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="flask" href="https://github.com/daytonaio/daytona/tree/main/examples/typescript">
+    Browse TypeScript examples on GitHub
+  </Card>
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Learn about the Python SDK
+  </Card>
+</CardGroup>

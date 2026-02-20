@@ -1,0 +1,372 @@
+---
+title: Process API
+description: Execute commands and manage processes in Daytona sandboxes
+---
+
+The Process API provides endpoints for executing commands, managing pseudo-terminal (PTY) sessions, shell sessions, and interpreter contexts within Daytona sandboxes.
+
+## Command Execution
+
+### Execute Command
+
+Execute a shell command synchronously and return the output.
+
+```http
+POST /process/execute
+```
+
+**Request Body:**
+
+```json
+{
+  "command": "ls -la",
+  "cwd": "/workspace",
+  "timeout": 30
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `command` | string | Yes | Shell command to execute |
+| `cwd` | string | No | Working directory for command execution |
+| `timeout` | integer | No | Timeout in seconds (default: 10) |
+
+**Response:**
+
+```json
+{
+  "result": "total 24\ndrwxr-xr-x  5 user user 4096 ...",
+  "exitCode": 0
+}
+```
+
+## PTY Sessions
+
+Pseudo-terminal (PTY) sessions provide interactive terminal access with WebSocket support.
+
+### Create PTY Session
+
+Create a new PTY session for interactive terminal access.
+
+```http
+POST /process/pty
+```
+
+**Request Body:**
+
+```json
+{
+  "id": "my-terminal",
+  "cwd": "/workspace",
+  "rows": 24,
+  "cols": 80,
+  "envs": {
+    "TERM": "xterm-256color"
+  },
+  "lazyStart": false
+}
+```
+
+**Response:**
+
+```json
+{
+  "sessionId": "my-terminal"
+}
+```
+
+### List PTY Sessions
+
+Get all active PTY sessions.
+
+```http
+GET /process/pty
+```
+
+**Response:**
+
+```json
+{
+  "sessions": [
+    {
+      "id": "my-terminal",
+      "active": true,
+      "rows": 24,
+      "cols": 80,
+      "cwd": "/workspace",
+      "envs": {},
+      "lazyStart": false,
+      "createdAt": "2024-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+### Get PTY Session
+
+Get information about a specific PTY session.
+
+```http
+GET /process/pty/{sessionId}
+```
+
+### Connect to PTY Session
+
+Establish a WebSocket connection for interactive terminal access.
+
+```http
+GET /process/pty/{sessionId}/connect
+Upgrade: websocket
+```
+
+### Resize PTY Session
+
+Change the terminal dimensions.
+
+```http
+POST /process/pty/{sessionId}/resize
+```
+
+**Request Body:**
+
+```json
+{
+  "rows": 30,
+  "cols": 120
+}
+```
+
+**Parameters:**
+- `rows`: Terminal height (1-1000)
+- `cols`: Terminal width (1-1000)
+
+### Delete PTY Session
+
+Terminate and delete a PTY session.
+
+```http
+DELETE /process/pty/{sessionId}
+```
+
+## Shell Sessions
+
+Shell sessions allow executing multiple commands within the same session context.
+
+### Create Session
+
+Create a new shell session.
+
+```http
+POST /process/session
+```
+
+**Request Body:**
+
+```json
+{
+  "sessionId": "build-session"
+}
+```
+
+### List Sessions
+
+Get all active shell sessions.
+
+```http
+GET /process/session
+```
+
+**Response:**
+
+```json
+[
+  {
+    "sessionId": "build-session",
+    "commands": [
+      {
+        "id": "cmd-1",
+        "command": "npm install",
+        "exitCode": 0
+      }
+    ]
+  }
+]
+```
+
+### Get Session
+
+Get details of a specific session.
+
+```http
+GET /process/session/{sessionId}
+```
+
+### Execute in Session
+
+Execute a command within an existing session.
+
+```http
+POST /process/session/{sessionId}/exec
+```
+
+**Request Body:**
+
+```json
+{
+  "command": "npm run build",
+  "async": false,
+  "runAsync": false,
+  "suppressInputEcho": false
+}
+```
+
+**Response:**
+
+```json
+{
+  "cmdId": "cmd-2",
+  "exitCode": 0,
+  "stdout": "Build completed successfully",
+  "stderr": "",
+  "output": "Build completed successfully"
+}
+```
+
+### Get Session Command
+
+Get details of a specific command in a session.
+
+```http
+GET /process/session/{sessionId}/command/{commandId}
+```
+
+### Get Command Logs
+
+Get logs for a specific command. Supports WebSocket streaming.
+
+```http
+GET /process/session/{sessionId}/command/{commandId}/logs?follow=true
+```
+
+**Query Parameters:**
+- `follow`: Stream logs in real-time via WebSocket (boolean)
+
+### Send Input to Command
+
+Send input to a running interactive command.
+
+```http
+POST /process/session/{sessionId}/command/{commandId}/input
+```
+
+**Request Body:**
+
+```json
+{
+  "data": "yes\n"
+}
+```
+
+### Delete Session
+
+Delete a shell session.
+
+```http
+DELETE /process/session/{sessionId}
+```
+
+## Interpreter Contexts
+
+Manage isolated code interpreter contexts for executing code.
+
+### Create Interpreter Context
+
+Create a new isolated interpreter context.
+
+```http
+POST /process/interpreter/context
+```
+
+**Request Body:**
+
+```json
+{
+  "cwd": "/workspace",
+  "language": "python"
+}
+```
+
+**Response:**
+
+```json
+{
+  "id": "ctx-abc123",
+  "active": true,
+  "cwd": "/workspace",
+  "language": "python",
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+### List Interpreter Contexts
+
+Get all user-created interpreter contexts.
+
+```http
+GET /process/interpreter/context
+```
+
+### Execute Code
+
+Execute code in an interpreter context via WebSocket.
+
+```http
+GET /process/interpreter/execute
+Upgrade: websocket
+```
+
+### Delete Interpreter Context
+
+Delete an interpreter context.
+
+```http
+DELETE /process/interpreter/context/{id}
+```
+
+## Best Practices
+
+<Tip>
+Use **PTY sessions** for interactive terminal access and **shell sessions** for programmatic command execution with session state.
+</Tip>
+
+- Set appropriate timeouts for long-running commands
+- Clean up sessions when no longer needed
+- Use WebSocket connections for real-time output streaming
+- Handle exit codes to detect command failures
+- Specify working directory to ensure commands run in correct context
+
+## Example Usage
+
+```typescript
+import { ToolboxApiClient } from '@daytona/toolbox-api-client'
+
+const client = new ToolboxApiClient({
+  baseURL: 'http://localhost:8080',
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+// Execute a command
+const result = await client.process.executeCommand({
+  command: 'git status',
+  cwd: '/workspace',
+  timeout: 30
+})
+
+console.log(result.data.result)
+```
+
+<Note>
+Prefer using the official Daytona SDKs over direct API calls for better type safety and error handling.
+</Note>

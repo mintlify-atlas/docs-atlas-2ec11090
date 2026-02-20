@@ -1,0 +1,372 @@
+---
+title: Custom Images
+description: Use custom Docker images and configure dynamic image builds for Daytona sandboxes
+---
+
+## Overview
+
+Daytona supports creating sandboxes from custom Docker images in two ways:
+- **Pre-built images** from Docker registries
+- **Dynamic images** using Daytona's declarative Image builder
+
+## Using Pre-built Images
+
+You can create sandboxes from any public or private Docker image:
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+// Use any Docker image from a registry
+const sandbox = await daytona.create({
+  image: 'python:3.12-slim-bookworm',
+  resources: {
+    cpu: 2,
+    memory: 4,
+    disk: 20
+  }
+})
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+
+# Use any Docker image from a registry
+sandbox = daytona.create(
+    image='python:3.12-slim-bookworm',
+    resources={
+        'cpu': 2,
+        'memory': 4,
+        'disk': 20
+    }
+)
+```
+</CodeGroup>
+
+## Declarative Image Builder
+
+Daytona provides a declarative API for building custom images programmatically:
+
+### Base Images
+
+Start with a base image using one of these methods:
+
+<CodeGroup>
+```typescript TypeScript
+import { Image } from '@daytonaio/sdk'
+
+// Use any Docker base image
+const image1 = Image.base('alpine:3.18')
+
+// Use Debian Slim with Python (optimized for data science)
+const image2 = Image.debianSlim('3.12')  // Python 3.12
+const image3 = Image.debianSlim('3.13')  // Python 3.13
+const image4 = Image.debianSlim()        // Latest supported version
+```
+
+```python Python
+from daytona_sdk import Image
+
+# Use any Docker base image
+image1 = Image.base('alpine:3.18')
+
+# Use Debian Slim with Python (optimized for data science)
+image2 = Image.debian_slim('3.12')  # Python 3.12
+image3 = Image.debian_slim('3.13')  # Python 3.13
+image4 = Image.debian_slim()        # Latest supported version
+```
+</CodeGroup>
+
+### Installing Python Packages
+
+<CodeGroup>
+```typescript TypeScript
+import { Image } from '@daytonaio/sdk'
+
+// Install packages from PyPI
+const image = Image.debianSlim('3.12')
+  .pipInstall(['numpy', 'pandas', 'matplotlib', 'scipy', 'scikit-learn'])
+  .pipInstall('requests', {
+    indexUrl: 'https://pypi.org/simple',
+    extraIndexUrls: ['https://custom.pypi.org/simple'],
+    pre: true  // Include pre-release versions
+  })
+
+// Install from requirements.txt
+const image2 = Image.debianSlim('3.12')
+  .pipInstallFromRequirements('requirements.txt')
+
+// Install from pyproject.toml
+const image3 = Image.debianSlim('3.12')
+  .pipInstallFromPyproject('pyproject.toml', {
+    optionalDependencies: ['dev', 'test']
+  })
+```
+
+```python Python
+from daytona_sdk import Image
+
+# Install packages from PyPI
+image = (Image.debian_slim('3.12')
+    .pip_install(['numpy', 'pandas', 'matplotlib', 'scipy', 'scikit-learn'])
+    .pip_install('requests', 
+        index_url='https://pypi.org/simple',
+        extra_index_urls=['https://custom.pypi.org/simple'],
+        pre=True  # Include pre-release versions
+    ))
+
+# Install from requirements.txt
+image2 = Image.debian_slim('3.12').pip_install_from_requirements('requirements.txt')
+
+# Install from pyproject.toml
+image3 = Image.debian_slim('3.12').pip_install_from_pyproject(
+    'pyproject.toml',
+    optional_dependencies=['dev', 'test']
+)
+```
+</CodeGroup>
+
+### Adding Files and Directories
+
+<CodeGroup>
+```typescript TypeScript
+import { Image } from '@daytonaio/sdk'
+
+const image = Image.debianSlim('3.12')
+  // Add a local file
+  .addLocalFile('config.json', '/app/config.json')
+  // Add a local directory
+  .addLocalDir('src', '/app/src')
+  // Run shell commands
+  .runCommands(
+    'apt-get update && apt-get install -y git curl',
+    'mkdir -p /app/data'
+  )
+```
+
+```python Python
+from daytona_sdk import Image
+
+image = (Image.debian_slim('3.12')
+    # Add a local file
+    .add_local_file('config.json', '/app/config.json')
+    # Add a local directory
+    .add_local_dir('src', '/app/src')
+    # Run shell commands
+    .run_commands(
+        'apt-get update && apt-get install -y git curl',
+        'mkdir -p /app/data'
+    ))
+```
+</CodeGroup>
+
+### Environment Variables and Working Directory
+
+<CodeGroup>
+```typescript TypeScript
+import { Image } from '@daytonaio/sdk'
+
+const image = Image.debianSlim('3.12')
+  .env({
+    NODE_ENV: 'production',
+    API_KEY: 'your-key',
+    DEBUG: 'true'
+  })
+  .workdir('/home/daytona/workspace')
+```
+
+```python Python
+from daytona_sdk import Image
+
+image = (Image.debian_slim('3.12')
+    .env({
+        'NODE_ENV': 'production',
+        'API_KEY': 'your-key',
+        'DEBUG': 'true'
+    })
+    .workdir('/home/daytona/workspace'))
+```
+</CodeGroup>
+
+### Complete Example
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona, Image } from '@daytonaio/sdk'
+import fs from 'fs'
+
+const daytona = new Daytona()
+
+// Create a custom data science image
+const image = Image.debianSlim('3.12')
+  .pipInstall(['numpy', 'pandas', 'matplotlib', 'scipy', 'scikit-learn'])
+  .runCommands(
+    'apt-get update && apt-get install -y git',
+    'mkdir -p /home/daytona/workspace'
+  )
+  .workdir('/home/daytona/workspace')
+  .env({
+    PYTHONUNBUFFERED: '1',
+    PROJECT_ENV: 'development'
+  })
+  .addLocalFile('config.json', '/home/daytona/workspace/config.json')
+
+// Create sandbox with dynamic image
+const sandbox = await daytona.create(
+  {
+    image,
+    resources: {
+      cpu: 4,
+      memory: 8,
+      disk: 50
+    }
+  },
+  {
+    timeout: 120,
+    onSnapshotCreateLogs: console.log  // Stream build logs
+  }
+)
+```
+
+```python Python
+from daytona_sdk import Daytona, Image
+
+daytona = Daytona()
+
+# Create a custom data science image
+image = (Image.debian_slim('3.12')
+    .pip_install(['numpy', 'pandas', 'matplotlib', 'scipy', 'scikit-learn'])
+    .run_commands(
+        'apt-get update && apt-get install -y git',
+        'mkdir -p /home/daytona/workspace'
+    )
+    .workdir('/home/daytona/workspace')
+    .env({
+        'PYTHONUNBUFFERED': '1',
+        'PROJECT_ENV': 'development'
+    })
+    .add_local_file('config.json', '/home/daytona/workspace/config.json'))
+
+# Create sandbox with dynamic image
+sandbox = daytona.create(
+    image=image,
+    resources={
+        'cpu': 4,
+        'memory': 8,
+        'disk': 50
+    },
+    timeout=120,
+    on_snapshot_create_logs=print  # Stream build logs
+)
+```
+</CodeGroup>
+
+## Using Dockerfiles
+
+You can also build images from existing Dockerfiles:
+
+<CodeGroup>
+```typescript TypeScript
+import { Image } from '@daytonaio/sdk'
+
+const image = Image.fromDockerfile('./path/to/Dockerfile')
+
+const sandbox = await daytona.create({ image })
+```
+
+```python Python
+from daytona_sdk import Image
+
+image = Image.from_dockerfile('./path/to/Dockerfile')
+
+sandbox = daytona.create(image=image)
+```
+</CodeGroup>
+
+## Advanced Dockerfile Commands
+
+For advanced use cases, you can add raw Dockerfile commands:
+
+<CodeGroup>
+```typescript TypeScript
+import { Image } from '@daytonaio/sdk'
+
+const image = Image.base('ubuntu:22.04')
+  .dockerfileCommands([
+    'RUN apt-get update',
+    'RUN apt-get install -y build-essential',
+    'EXPOSE 8080',
+    'HEALTHCHECK CMD curl --fail http://localhost:8080 || exit 1'
+  ])
+  .entrypoint(['/bin/bash'])
+  .cmd(['-c', 'echo Hello World'])
+```
+
+```python Python
+from daytona_sdk import Image
+
+image = (Image.base('ubuntu:22.04')
+    .dockerfile_commands([
+        'RUN apt-get update',
+        'RUN apt-get install -y build-essential',
+        'EXPOSE 8080',
+        'HEALTHCHECK CMD curl --fail http://localhost:8080 || exit 1'
+    ])
+    .entrypoint(['/bin/bash'])
+    .cmd(['-c', 'echo Hello World']))
+```
+</CodeGroup>
+
+## Image Build Options
+
+### Supported Python Versions
+
+Daytona's `debianSlim()` method supports:
+- Python 3.9 (3.9.22)
+- Python 3.10 (3.10.17)
+- Python 3.11 (3.11.12)
+- Python 3.12 (3.12.10)
+- Python 3.13 (3.13.3)
+
+### Pip Install Options
+
+The `pipInstall()` method accepts these options:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `findLinks` | `string[]` | URLs to search for packages |
+| `indexUrl` | `string` | Base URL of Python Package Index |
+| `extraIndexUrls` | `string[]` | Extra URLs for package index |
+| `pre` | `boolean` | Include pre-release and development versions |
+| `extraOptions` | `string` | Raw options passed to pip install |
+
+## Best Practices
+
+1. **Use snapshots for repeated builds**: If you're creating multiple sandboxes with the same image, create a snapshot first:
+
+```typescript
+const snapshot = await daytona.snapshot.create({
+  name: 'my-custom-image',
+  image: myImage,
+  resources: { cpu: 2, memory: 4, disk: 20 }
+})
+
+// Reuse the snapshot for faster creation
+const sandbox1 = await daytona.create({ snapshot: 'my-custom-image' })
+const sandbox2 = await daytona.create({ snapshot: 'my-custom-image' })
+```
+
+2. **Layer optimization**: Order commands from least to most frequently changing to maximize Docker layer caching.
+
+3. **Keep images small**: Only install necessary packages to reduce build time and storage.
+
+4. **Use build logs**: Enable `onSnapshotCreateLogs` to monitor build progress and debug issues.
+
+## Related
+
+- [Resource Management](/advanced/resource-management) - Configure CPU, memory, and disk
+- [Snapshots](/concepts/snapshots) - Create reusable images

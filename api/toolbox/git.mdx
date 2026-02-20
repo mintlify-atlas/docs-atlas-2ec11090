@@ -1,0 +1,417 @@
+---
+title: Git API
+description: Version control operations in Daytona sandboxes
+---
+
+The Git API provides endpoints for Git operations including cloning repositories, managing branches, committing changes, and synchronizing with remote repositories.
+
+## Repository Operations
+
+### Clone Repository
+
+Clone a Git repository to a specified path.
+
+```http
+POST /git/clone
+```
+
+**Request Body:**
+
+```json
+{
+  "url": "https://github.com/user/repo.git",
+  "path": "/workspace/repo",
+  "branch": "main",
+  "commit_id": "",
+  "username": "git-user",
+  "password": "token-or-password"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Repository URL |
+| `path` | string | Yes | Local path to clone to |
+| `branch` | string | No | Branch to checkout |
+| `commit_id` | string | No | Specific commit to checkout |
+| `username` | string | No | Git username for authentication |
+| `password` | string | No | Git password or token |
+
+### Get Repository Status
+
+Get the current Git status of a repository.
+
+```http
+GET /git/status?path=/workspace/repo
+```
+
+**Response:**
+
+```json
+{
+  "currentBranch": "main",
+  "branchPublished": true,
+  "ahead": 2,
+  "behind": 0,
+  "fileStatus": [
+    {
+      "name": "src/index.ts",
+      "staging": "Modified",
+      "worktree": "Unmodified",
+      "extra": ""
+    },
+    {
+      "name": "README.md",
+      "staging": "Unmodified",
+      "worktree": "Modified",
+      "extra": ""
+    }
+  ]
+}
+```
+
+**File Status Values:**
+- `Unmodified` - No changes
+- `Untracked` - New file not tracked
+- `Modified` - File changed
+- `Added` - File staged for commit
+- `Deleted` - File deleted
+- `Renamed` - File renamed
+- `Copied` - File copied
+- `Updated but unmerged` - Merge conflict
+
+### Get Commit History
+
+Retrieve the commit history of a repository.
+
+```http
+GET /git/history?path=/workspace/repo
+```
+
+**Response:**
+
+```json
+[
+  {
+    "hash": "abc123def456",
+    "author": "John Doe",
+    "email": "john@example.com",
+    "message": "Add new feature",
+    "timestamp": "2024-01-15T10:30:00Z"
+  },
+  {
+    "hash": "def456abc789",
+    "author": "Jane Smith",
+    "email": "jane@example.com",
+    "message": "Fix bug in authentication",
+    "timestamp": "2024-01-14T15:20:00Z"
+  }
+]
+```
+
+## Branch Management
+
+### List Branches
+
+Get all branches in the repository.
+
+```http
+GET /git/branches?path=/workspace/repo
+```
+
+**Response:**
+
+```json
+{
+  "branches": [
+    "main",
+    "develop",
+    "feature/new-api",
+    "bugfix/login-issue"
+  ]
+}
+```
+
+### Create Branch
+
+Create a new branch.
+
+```http
+POST /git/branches
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "name": "feature/new-feature"
+}
+```
+
+### Checkout Branch
+
+Switch to a different branch.
+
+```http
+POST /git/checkout
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "branch": "develop"
+}
+```
+
+### Delete Branch
+
+Delete a branch from the repository.
+
+```http
+DELETE /git/branches
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "name": "feature/old-feature"
+}
+```
+
+## Staging and Committing
+
+### Add Files
+
+Add files to the Git staging area.
+
+```http
+POST /git/add
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "files": [
+    "src/index.ts",
+    "README.md",
+    "."
+  ]
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Repository path |
+| `files` | array | Yes | Files to add (use "." for all files) |
+
+### Commit Changes
+
+Commit staged changes to the repository.
+
+```http
+POST /git/commit
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "message": "Add authentication feature",
+  "author": "John Doe",
+  "email": "john@example.com",
+  "allow_empty": false
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Repository path |
+| `message` | string | Yes | Commit message |
+| `author` | string | Yes | Author name |
+| `email` | string | Yes | Author email |
+| `allow_empty` | boolean | No | Allow empty commits |
+
+**Response:**
+
+```json
+{
+  "hash": "abc123def456789"
+}
+```
+
+## Remote Operations
+
+### Pull Changes
+
+Pull changes from the remote repository.
+
+```http
+POST /git/pull
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "username": "git-user",
+  "password": "token-or-password"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Repository path |
+| `username` | string | No | Git username for authentication |
+| `password` | string | No | Git password or token |
+
+### Push Changes
+
+Push local commits to the remote repository.
+
+```http
+POST /git/push
+```
+
+**Request Body:**
+
+```json
+{
+  "path": "/workspace/repo",
+  "username": "git-user",
+  "password": "token-or-password"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Repository path |
+| `username` | string | No | Git username for authentication |
+| `password` | string | No | Git password or token |
+
+## Git Workflows
+
+### Complete Feature Workflow
+
+Here's a typical workflow for developing a feature:
+
+```typescript
+// 1. Clone repository
+await client.git.cloneRepository({
+  url: 'https://github.com/user/repo.git',
+  path: '/workspace/repo',
+  branch: 'main'
+})
+
+// 2. Create feature branch
+await client.git.createBranch({
+  path: '/workspace/repo',
+  name: 'feature/new-api'
+})
+
+// 3. Checkout feature branch
+await client.git.checkoutBranch({
+  path: '/workspace/repo',
+  branch: 'feature/new-api'
+})
+
+// ... make changes to files ...
+
+// 4. Check status
+const status = await client.git.getStatus('/workspace/repo')
+
+// 5. Stage changes
+await client.git.addFiles({
+  path: '/workspace/repo',
+  files: ['.']
+})
+
+// 6. Commit changes
+const commit = await client.git.commitChanges({
+  path: '/workspace/repo',
+  message: 'Implement new API endpoints',
+  author: 'John Doe',
+  email: 'john@example.com'
+})
+
+// 7. Push to remote
+await client.git.pushChanges({
+  path: '/workspace/repo',
+  username: 'user',
+  password: process.env.GIT_TOKEN
+})
+```
+
+## Best Practices
+
+<Tip>
+Always check the repository status before committing to understand what changes will be included.
+</Tip>
+
+- Use descriptive commit messages
+- Pull before pushing to avoid conflicts
+- Use feature branches for new development
+- Provide authentication credentials securely (use environment variables)
+- Handle merge conflicts appropriately
+- Check `ahead` and `behind` counts in status to track synchronization
+
+## Authentication
+
+<Warning>
+Never hardcode Git credentials. Use environment variables or secure secret management.
+</Warning>
+
+For private repositories, provide credentials:
+
+```json
+{
+  "username": "git-username",
+  "password": "ghp_personal_access_token"
+}
+```
+
+For GitHub, use Personal Access Tokens instead of passwords.
+
+## Example Usage
+
+```typescript
+import { ToolboxApiClient } from '@daytona/toolbox-api-client'
+
+const client = new ToolboxApiClient({
+  baseURL: 'http://localhost:8080',
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+// Get repository status
+const status = await client.git.getStatus('/workspace/repo')
+
+console.log(`Current branch: ${status.data.currentBranch}`)
+console.log(`Ahead: ${status.data.ahead}, Behind: ${status.data.behind}`)
+
+// List modified files
+status.data.fileStatus.forEach(file => {
+  console.log(`${file.name}: ${file.worktree}`)
+})
+```
+
+<Note>
+Prefer using the official Daytona SDKs over direct API calls for better type safety and error handling.
+</Note>

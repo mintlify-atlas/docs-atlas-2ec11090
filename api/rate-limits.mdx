@@ -1,0 +1,357 @@
+---
+title: 'Rate Limits'
+description: 'Understand API rate limiting policies and how to handle rate limit errors'
+---
+
+# Rate Limits
+
+Daytona implements rate limiting to ensure platform stability and fair resource distribution across all users. Rate limits apply to all API endpoints based on your authentication method and request type.
+
+## Rate Limit Types
+
+Daytona enforces different rate limits for different types of operations:
+
+### Authenticated Requests
+
+Standard rate limit for authenticated API requests.
+
+- **Limit:** 100 requests per minute
+- **Window:** 60 seconds
+- **Scope:** Per API key or user token
+
+```json
+{
+  "authenticated": {
+    "limit": 100,
+    "ttl": 60
+  }
+}
+```
+
+### Failed Authentication Attempts
+
+Protects against brute-force attacks.
+
+- **Limit:** 10 failed attempts per 5 minutes
+- **Window:** 300 seconds
+- **Scope:** Per IP address
+
+```json
+{
+  "failedAuth": {
+    "limit": 10,
+    "ttl": 300
+  }
+}
+```
+
+### Sandbox Creation
+
+Limits the rate of sandbox creation to prevent resource exhaustion.
+
+- **Limit:** 20 sandboxes per 10 minutes
+- **Window:** 600 seconds
+- **Scope:** Per organization
+
+```json
+{
+  "sandboxCreate": {
+    "limit": 20,
+    "ttl": 600
+  }
+}
+```
+
+### Sandbox Lifecycle Operations
+
+Limits start, stop, restart operations on sandboxes.
+
+- **Limit:** 50 operations per 5 minutes
+- **Window:** 300 seconds
+- **Scope:** Per organization
+
+```json
+{
+  "sandboxLifecycle": {
+    "limit": 50,
+    "ttl": 300
+  }
+}
+```
+
+## Rate Limit Headers
+
+Every API response includes rate limit information in the headers:
+
+<ResponseField name="X-RateLimit-Limit" type="number">
+  Maximum number of requests allowed in the time window
+</ResponseField>
+
+<ResponseField name="X-RateLimit-Remaining" type="number">
+  Number of requests remaining in the current window
+</ResponseField>
+
+<ResponseField name="X-RateLimit-Reset" type="number">
+  Unix timestamp when the rate limit window resets
+</ResponseField>
+
+### Example Response Headers
+
+```http
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 73
+X-RateLimit-Reset: 1705320000
+Content-Type: application/json
+```
+
+## Rate Limit Errors
+
+When you exceed a rate limit, the API returns a `429 Too Many Requests` response:
+
+```json
+{
+  "statusCode": 429,
+  "message": "Too Many Requests",
+  "error": "Rate limit exceeded. Please retry after 45 seconds.",
+  "retryAfter": 45
+}
+```
+
+<ResponseField name="statusCode" type="number">
+  HTTP status code (429)
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error message summary
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Detailed error description
+</ResponseField>
+
+<ResponseField name="retryAfter" type="number">
+  Seconds to wait before retrying the request
+</ResponseField>
+
+### Response Headers on Rate Limit
+
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1705320045
+Retry-After: 45
+Content-Type: application/json
+```
+
+## Handling Rate Limits
+
+### Check Before Request
+
+Monitor rate limit headers to avoid hitting limits:
+
+```python
+import requests
+import time
+
+def make_request(url, headers):
+    response = requests.get(url, headers=headers)
+    
+    # Check remaining requests
+    remaining = int(response.headers.get('X-RateLimit-Remaining', 0))
+    
+    if remaining < 10:
+        # Approaching limit, slow down
+        reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+        wait_time = reset_time - time.time()
+        print(f"Approaching rate limit. Waiting {wait_time} seconds...")
+        time.sleep(wait_time)
+    
+    return response
+```
+
+### Implement Exponential Backoff
+
+Retry failed requests with exponential backoff:
+
+```python
+import requests
+import time
+
+def request_with_backoff(url, headers, max_retries=5):
+    for attempt in range(max_retries):
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 429:
+            return response
+        
+        # Rate limited, wait and retry
+        retry_after = int(response.headers.get('Retry-After', 2 ** attempt))
+        print(f"Rate limited. Retrying after {retry_after} seconds...")
+        time.sleep(retry_after)
+    
+    raise Exception("Max retries exceeded")
+```
+
+### Use SDK Auto-Retry
+
+Official Daytona SDKs include automatic retry logic:
+
+```typescript
+import { DaytonaClient } from '@daytona/sdk';
+
+const client = new DaytonaClient({
+  apiKey: process.env.DAYTONA_API_KEY,
+  retryConfig: {
+    maxRetries: 3,
+    retryDelay: 1000,
+    backoffMultiplier: 2
+  }
+});
+
+// SDK automatically handles rate limits and retries
+const sandboxes = await client.sandboxes.list();
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Batch Operations">
+    Use batch endpoints when available to reduce total request count:
+    
+    ```bash
+    # Instead of multiple single requests
+    POST /sandbox (x20)
+    
+    # Use paginated listing
+    GET /sandbox/paginated?limit=100
+    ```
+  </Accordion>
+
+  <Accordion title="Cache Responses">
+    Cache API responses when data doesn't change frequently:
+    
+    ```python
+    import time
+    
+    cache = {}
+    cache_ttl = 60  # Cache for 60 seconds
+    
+    def get_sandboxes_cached(api_client):
+        now = time.time()
+        
+        if 'sandboxes' in cache:
+            cached_at, data = cache['sandboxes']
+            if now - cached_at < cache_ttl:
+                return data
+        
+        # Cache expired, fetch fresh data
+        data = api_client.sandboxes.list()
+        cache['sandboxes'] = (now, data)
+        return data
+    ```
+  </Accordion>
+
+  <Accordion title="Distribute Load">
+    Spread requests evenly over time instead of bursting:
+    
+    ```python
+    import time
+    
+    def process_sandboxes(sandbox_ids):
+        for sandbox_id in sandbox_ids:
+            process_sandbox(sandbox_id)
+            # Add small delay between requests
+            time.sleep(0.6)  # ~100 requests/minute
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor Usage">
+    Track your rate limit usage over time:
+    
+    ```python
+    def log_rate_limit_usage(response):
+        limit = response.headers.get('X-RateLimit-Limit')
+        remaining = response.headers.get('X-RateLimit-Remaining')
+        usage_percent = ((int(limit) - int(remaining)) / int(limit)) * 100
+        
+        print(f"Rate limit usage: {usage_percent:.1f}%")
+        
+        if usage_percent > 80:
+            print("WARNING: Approaching rate limit")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Increasing Rate Limits
+
+If your use case requires higher rate limits:
+
+1. **Review your implementation** - Ensure you're using best practices and batch operations
+2. **Contact support** - Reach out to discuss your specific needs
+3. **Enterprise plans** - Higher rate limits available on enterprise plans
+
+<Info>
+  Rate limits are configurable per organization for enterprise customers. Contact sales for custom rate limit configurations.
+</Info>
+
+## Checking Current Limits
+
+Retrieve your current rate limit configuration:
+
+```bash
+curl -X GET https://api.daytona.io/config \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Response includes rate limit configuration:
+
+```json
+{
+  "version": "1.0",
+  "rateLimit": {
+    "authenticated": {
+      "limit": 100,
+      "ttl": 60
+    },
+    "failedAuth": {
+      "limit": 10,
+      "ttl": 300
+    },
+    "sandboxCreate": {
+      "limit": 20,
+      "ttl": 600
+    },
+    "sandboxLifecycle": {
+      "limit": 50,
+      "ttl": 300
+    }
+  }
+}
+```
+
+## Rate Limit Exemptions
+
+Certain endpoints may be exempt from rate limiting:
+
+- Health check endpoints (`/health`, `/status`)
+- Public configuration endpoints (`/config`)
+- WebSocket connections (subject to connection limits)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/errors">
+    Learn about all API error codes
+  </Card>
+  <Card title="SDKs" icon="code" href="/sdks/overview">
+    Use SDKs with built-in retry logic
+  </Card>
+  <Card title="Sandboxes API" icon="box" href="/api/sandboxes/create">
+    Start making API requests
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/advanced/monitoring">
+    Monitor your API usage
+  </Card>
+</CardGroup>

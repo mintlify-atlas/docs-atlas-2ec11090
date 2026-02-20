@@ -1,0 +1,70 @@
+---
+title: Delete volume
+description: Delete a volume by its ID
+openapi: DELETE /volumes/{volumeId}
+---
+
+Delete a volume. This operation is permanent and cannot be undone.
+
+<Warning>
+  Deleting a volume permanently removes all data stored in it. This action cannot be undone.
+</Warning>
+
+## Path parameters
+
+<ParamField path="volumeId" type="string" required>
+  The unique ID of the volume to delete
+</ParamField>
+
+## Response
+
+Returns a `204 No Content` status on successful deletion.
+
+## Error responses
+
+<ResponseField name="404">
+  Volume not found with the specified ID
+</ResponseField>
+
+<ResponseField name="409">
+  Volume is currently mounted to one or more sandboxes and cannot be deleted
+</ResponseField>
+
+```json
+{
+  "statusCode": 409,
+  "message": "Volume is currently in use by sandboxes",
+  "error": "Conflict"
+}
+```
+
+## Example request
+
+```bash
+curl -X DELETE https://api.daytona.io/volumes/vol_abc123xyz \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Before deleting
+
+Make sure to unmount the volume from all sandboxes before deletion:
+
+1. List all sandboxes using the volume
+2. Stop or delete those sandboxes
+3. Then delete the volume
+
+## Alternative: Get volume ID by name
+
+If you only have the volume name, first get the volume details to find its ID:
+
+```bash
+# Get volume by name
+curl https://api.daytona.io/volumes/by-name/my-data-volume \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Response includes ID: "vol_abc123xyz"
+
+# Delete by ID
+curl -X DELETE https://api.daytona.io/volumes/vol_abc123xyz \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```

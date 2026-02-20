@@ -1,0 +1,179 @@
+---
+title: CLI Overview
+description: Introduction to the Daytona Command Line Interface
+---
+
+## Introduction
+
+The Daytona CLI is a command-line interface for managing Daytona Sandboxes. It provides a complete set of tools to create, manage, and interact with sandboxes, snapshots, volumes, and organizations.
+
+## Installation
+
+To install the Daytona CLI, follow the instructions in the [Installation Guide](/installation).
+
+## Getting Started
+
+After installation, authenticate with your Daytona account:
+
+```bash
+daytona login
+```
+
+This will open your browser to complete the authentication process.
+
+## Basic Usage
+
+The Daytona CLI follows a standard command structure:
+
+```bash
+daytona [command] [subcommand] [flags]
+```
+
+### Quick Start
+
+Create your first sandbox:
+
+```bash
+# Create a sandbox from a snapshot
+daytona create --snapshot ubuntu
+
+# List all sandboxes
+daytona list
+
+# SSH into a sandbox
+daytona ssh my-sandbox
+```
+
+## Command Categories
+
+The CLI is organized into the following command groups:
+
+### Sandbox Commands
+
+Manage sandboxes - create, list, start, stop, delete, and interact with your development environments.
+
+```bash
+daytona create      # Create a new sandbox
+daytona list        # List all sandboxes
+daytona start       # Start a sandbox
+daytona stop        # Stop a sandbox
+daytona delete      # Delete a sandbox
+daytona ssh         # SSH into a sandbox
+daytona exec        # Execute commands in a sandbox
+daytona info        # Get sandbox information
+```
+
+See [Sandbox Commands](/cli/sandbox-commands) for detailed documentation.
+
+### Snapshot Commands
+
+Manage sandbox snapshots - create, list, and push custom images.
+
+```bash
+daytona snapshot create   # Create a snapshot
+daytona snapshot list     # List all snapshots
+daytona snapshot delete   # Delete a snapshot
+daytona snapshot push     # Push a local image
+```
+
+See [Snapshot Commands](/cli/snapshot-commands) for detailed documentation.
+
+### Volume Commands
+
+Manage persistent volumes for your sandboxes.
+
+```bash
+daytona volume create   # Create a volume
+daytona volume list     # List all volumes
+daytona volume get      # Get volume details
+daytona volume delete   # Delete a volume
+```
+
+See [Volume Commands](/cli/volume-commands) for detailed documentation.
+
+### Organization Commands
+
+Manage organizations and switch between them.
+
+```bash
+daytona organization create   # Create an organization
+daytona organization list     # List all organizations
+daytona organization use      # Set active organization
+daytona organization delete   # Delete an organization
+```
+
+See [Organization Commands](/cli/organization-commands) for detailed documentation.
+
+## Global Flags
+
+### Help
+
+Get help for any command:
+
+```bash
+daytona --help
+daytona create --help
+daytona snapshot create --help
+```
+
+### Version
+
+Display the version of Daytona:
+
+```bash
+daytona --version
+# or
+daytona version
+```
+
+### Output Formatting
+
+Many commands support custom output formatting:
+
+```bash
+# JSON output
+daytona list --format json
+
+# YAML output
+daytona info my-sandbox --format yaml
+```
+
+## Authentication
+
+### Login
+
+Authenticate with Daytona:
+
+```bash
+daytona login
+```
+
+### Logout
+
+Remove authentication credentials:
+
+```bash
+daytona logout
+```
+
+## Shell Completion
+
+Enable shell completion for faster command-line usage:
+
+```bash
+# For bash
+daytona autocomplete bash
+
+# For zsh
+daytona autocomplete zsh
+
+# For fish
+daytona autocomplete fish
+```
+
+## Next Steps
+
+- Learn about [Sandbox Commands](/cli/sandbox-commands)
+- Explore [Snapshot Commands](/cli/snapshot-commands)
+- Manage [Volumes](/cli/volume-commands)
+- Work with [Organizations](/cli/organization-commands)

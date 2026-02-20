@@ -1,0 +1,415 @@
+---
+title: LSP API
+description: Language Server Protocol integration in Daytona sandboxes
+---
+
+The LSP API provides endpoints for integrating Language Server Protocol (LSP) servers, enabling advanced code intelligence features like code completion, symbol navigation, and workspace symbol search.
+
+## What is LSP?
+
+The Language Server Protocol (LSP) provides language intelligence features such as:
+
+- **Code Completion** - Context-aware suggestions while typing
+- **Document Symbols** - Navigate functions, classes, and variables
+- **Workspace Symbols** - Search symbols across entire project
+- **Diagnostics** - Real-time error and warning detection
+
+The Toolbox LSP API manages LSP server lifecycle and provides access to these features.
+
+## LSP Server Management
+
+### Start LSP Server
+
+Start a Language Server for a specific programming language.
+
+```http
+POST /lsp/start
+```
+
+**Request Body:**
+
+```json
+{
+  "languageId": "typescript",
+  "pathToProject": "/workspace/my-project"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `languageId` | string | Yes | Language identifier (e.g., "python", "typescript", "go") |
+| `pathToProject` | string | Yes | Absolute path to project root |
+
+**Supported Languages:**
+- `typescript` / `javascript`
+- `python`
+- `go`
+- `rust`
+- `java`
+- And others depending on server availability
+
+### Stop LSP Server
+
+Stop a running Language Server.
+
+```http
+POST /lsp/stop
+```
+
+**Request Body:**
+
+```json
+{
+  "languageId": "typescript",
+  "pathToProject": "/workspace/my-project"
+}
+```
+
+## Document Lifecycle
+
+### Open Document
+
+Notify the LSP server that a document has been opened.
+
+```http
+POST /lsp/did-open
+```
+
+**Request Body:**
+
+```json
+{
+  "uri": "file:///workspace/my-project/src/index.ts",
+  "languageId": "typescript",
+  "pathToProject": "/workspace/my-project"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uri` | string | Yes | Document URI (file:// protocol) |
+| `languageId` | string | Yes | Language identifier |
+| `pathToProject` | string | Yes | Project root path |
+
+### Close Document
+
+Notify the LSP server that a document has been closed.
+
+```http
+POST /lsp/did-close
+```
+
+**Request Body:**
+
+```json
+{
+  "uri": "file:///workspace/my-project/src/index.ts",
+  "languageId": "typescript",
+  "pathToProject": "/workspace/my-project"
+}
+```
+
+## Code Intelligence
+
+### Get Code Completions
+
+Get code completion suggestions at a specific position.
+
+```http
+POST /lsp/completions
+```
+
+**Request Body:**
+
+```json
+{
+  "uri": "file:///workspace/my-project/src/index.ts",
+  "languageId": "typescript",
+  "pathToProject": "/workspace/my-project",
+  "position": {
+    "line": 10,
+    "character": 5
+  },
+  "context": {
+    "triggerKind": 1,
+    "triggerCharacter": "."
+  }
+}
+```
+
+**Position Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `line` | integer | Zero-based line number |
+| `character` | integer | Zero-based character offset |
+
+**Context Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `triggerKind` | integer | 1=Invoked, 2=TriggerCharacter, 3=TriggerForIncompleteCompletions |
+| `triggerCharacter` | string | Character that triggered completion (e.g., ".", "(") |
+
+**Response:**
+
+```json
+{
+  "isIncomplete": false,
+  "items": [
+    {
+      "label": "toString",
+      "kind": 2,
+      "detail": "() => string",
+      "documentation": "Returns a string representation of the object",
+      "insertText": "toString()",
+      "filterText": "toString",
+      "sortText": "0"
+    },
+    {
+      "label": "valueOf",
+      "kind": 2,
+      "detail": "() => Object",
+      "documentation": "Returns the primitive value of the object",
+      "insertText": "valueOf()",
+      "filterText": "valueOf",
+      "sortText": "1"
+    }
+  ]
+}
+```
+
+**Completion Item Kinds:**
+- `1` - Text
+- `2` - Method
+- `3` - Function
+- `4` - Constructor
+- `5` - Field
+- `6` - Variable
+- `7` - Class
+- `8` - Interface
+- And more...
+
+### Get Document Symbols
+
+Retrieve all symbols (functions, classes, variables) in a document.
+
+```http
+GET /lsp/document-symbols?uri=file:///workspace/src/index.ts&languageId=typescript&pathToProject=/workspace
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `uri` | string | Yes | Document URI |
+| `languageId` | string | Yes | Language identifier |
+| `pathToProject` | string | Yes | Project root path |
+
+**Response:**
+
+```json
+[
+  {
+    "name": "calculateTotal",
+    "kind": 12,
+    "location": {
+      "uri": "file:///workspace/src/index.ts",
+      "range": {
+        "start": { "line": 5, "character": 0 },
+        "end": { "line": 10, "character": 1 }
+      }
+    }
+  },
+  {
+    "name": "User",
+    "kind": 5,
+    "location": {
+      "uri": "file:///workspace/src/index.ts",
+      "range": {
+        "start": { "line": 15, "character": 0 },
+        "end": { "line": 25, "character": 1 }
+      }
+    }
+  }
+]
+```
+
+**Symbol Kinds:**
+- `1` - File
+- `2` - Module
+- `5` - Class
+- `6` - Method
+- `12` - Function
+- `13` - Variable
+- And more...
+
+### Search Workspace Symbols
+
+Search for symbols across the entire workspace.
+
+```http
+GET /lsp/workspacesymbols?query=User&languageId=typescript&pathToProject=/workspace
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Search query string |
+| `languageId` | string | Yes | Language identifier |
+| `pathToProject` | string | Yes | Project root path |
+
+**Response:**
+
+```json
+[
+  {
+    "name": "User",
+    "kind": 5,
+    "location": {
+      "uri": "file:///workspace/src/models/user.ts",
+      "range": {
+        "start": { "line": 3, "character": 0 },
+        "end": { "line": 20, "character": 1 }
+      }
+    }
+  },
+  {
+    "name": "UserService",
+    "kind": 5,
+    "location": {
+      "uri": "file:///workspace/src/services/user.ts",
+      "range": {
+        "start": { "line": 5, "character": 0 },
+        "end": { "line": 50, "character": 1 }
+      }
+    }
+  }
+]
+```
+
+## Data Structures
+
+### Position
+
+Represents a position in a document.
+
+```typescript
+interface Position {
+  line: number      // Zero-based line number
+  character: number // Zero-based character offset
+}
+```
+
+### Range
+
+Represents a range in a document.
+
+```typescript
+interface Range {
+  start: Position
+  end: Position
+}
+```
+
+### Location
+
+Represents a location in a document.
+
+```typescript
+interface Location {
+  uri: string
+  range: Range
+}
+```
+
+## Best Practices
+
+<Tip>
+Start the LSP server once per project and reuse it for multiple document operations.
+</Tip>
+
+- Always call `did-open` before requesting completions for a document
+- Call `did-close` when done with a document to free resources
+- Use workspace symbols for cross-file navigation
+- Handle incomplete completion lists by requesting more items
+- Stop LSP servers when no longer needed to conserve resources
+
+## Example Workflow
+
+```typescript
+import { ToolboxApiClient } from '@daytona/toolbox-api-client'
+
+const client = new ToolboxApiClient({
+  baseURL: 'http://localhost:8080',
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+const projectPath = '/workspace/my-project'
+const languageId = 'typescript'
+const fileUri = 'file:///workspace/my-project/src/index.ts'
+
+// 1. Start LSP server
+await client.lsp.start({
+  languageId,
+  pathToProject: projectPath
+})
+
+// 2. Open document
+await client.lsp.didOpen({
+  uri: fileUri,
+  languageId,
+  pathToProject: projectPath
+})
+
+// 3. Get completions
+const completions = await client.lsp.completions({
+  uri: fileUri,
+  languageId,
+  pathToProject: projectPath,
+  position: { line: 10, character: 5 },
+  context: { triggerKind: 1 }
+})
+
+console.log('Completion suggestions:', completions.data.items)
+
+// 4. Get document symbols
+const symbols = await client.lsp.documentSymbols(
+  fileUri,
+  languageId,
+  projectPath
+)
+
+console.log('Document symbols:', symbols.data)
+
+// 5. Search workspace
+const results = await client.lsp.workspaceSymbols(
+  'User',
+  languageId,
+  projectPath
+)
+
+console.log('Found symbols:', results.data)
+
+// 6. Close document
+await client.lsp.didClose({
+  uri: fileUri,
+  languageId,
+  pathToProject: projectPath
+})
+
+// 7. Stop server when done
+await client.lsp.stop({
+  languageId,
+  pathToProject: projectPath
+})
+```
+
+<Note>
+Prefer using the official Daytona SDKs over direct API calls for better type safety and LSP feature support.
+</Note>

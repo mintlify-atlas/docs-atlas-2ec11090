@@ -1,0 +1,508 @@
+---
+title: File Operations
+description: Upload, download, and manage files in sandboxes
+---
+
+This example demonstrates comprehensive file operations including uploads, downloads, directory management, and file search.
+
+## What You'll Learn
+
+- Creating directories in sandboxes
+- Uploading files from local paths and memory
+- Downloading files to local paths or memory
+- Searching and listing files
+- Replacing content in files
+- Managing file permissions
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Python">
+```python
+import json
+import os
+from datetime import datetime
+
+from daytona import CreateSandboxFromSnapshotParams, Daytona, FileDownloadRequest, FileUpload
+
+
+def main():
+    daytona = Daytona()
+    params = CreateSandboxFromSnapshotParams(
+        language="python",
+    )
+
+    # First, create a sandbox
+    sandbox = daytona.create(params)
+    print(f"Created sandbox with ID: {sandbox.id}")
+
+    # List files in the sandbox
+    files = sandbox.fs.list_files(".")
+    print("Initial files:", files)
+
+    # Create a new directory in the sandbox
+    new_dir = "project-files"
+    sandbox.fs.create_folder(new_dir, "755")
+
+    # Create a local file for demonstration
+    local_file_path = "local-example.txt"
+    with open(local_file_path, "w", encoding="utf-8") as f:
+        _ = f.write("This is a local file created for demonstration purposes")
+
+    # Create a configuration file with JSON data
+    config_data = json.dumps(
+        {"name": "project-config", "version": "1.0.0", "settings": {"debug": True, "maxConnections": 10}}, indent=2
+    )
+
+    # Upload multiple files at once - both from local path and from bytes
+    sandbox.fs.upload_files(
+        [
+            FileUpload(source=local_file_path, destination=os.path.join(new_dir, "example.txt")),
+            FileUpload(source=config_data.encode("utf-8"), destination=os.path.join(new_dir, "config.json")),
+            FileUpload(
+                source=b'#!/bin/bash\necho "Hello from script!"\nexit 0', destination=os.path.join(new_dir, "script.sh")
+            ),
+        ]
+    )
+
+    # Execute commands on the sandbox to verify files and make them executable
+    print("Verifying uploaded files:")
+    ls_result = sandbox.process.exec(f"ls -la {new_dir}")
+    print(ls_result.result)
+
+    # Make the script executable
+    _ = sandbox.process.exec(f"chmod +x {os.path.join(new_dir, 'script.sh')}")
+
+    # Run the script
+    print("Running script:")
+    script_result = sandbox.process.exec(f"{os.path.join(new_dir, 'script.sh')}")
+    print(script_result.result)
+
+    # Search for files in the project
+    matches = sandbox.fs.search_files(new_dir, "*.json")
+    print("JSON files found:", matches)
+
+    # Replace content in config file
+    _ = sandbox.fs.replace_in_files([os.path.join(new_dir, "config.json")], '"debug": true', '"debug": false')
+
+    # Download multiple files - mix of local file and memory download
+    print("Downloading multiple files:")
+    download_results = sandbox.fs.download_files(
+        [
+            FileDownloadRequest(source=os.path.join(new_dir, "config.json"), destination="local-config.json"),
+            FileDownloadRequest(source=os.path.join(new_dir, "example.txt")),
+            FileDownloadRequest(source=os.path.join(new_dir, "script.sh"), destination="local-script.sh"),
+        ]
+    )
+
+    for result in download_results:
+        if result.error:
+            print(f"Error downloading {result.source}: {result.error}")
+        elif isinstance(result.result, str):
+            print(f"Downloaded {result.source} to {result.result}")
+        elif result.result:
+            print(f"Downloaded {result.source} to memory ({len(result.result)} bytes)")
+        else:
+            print(f"Downloaded {result.source} to None (unknown result type)")
+
+    # Single file download example
+    print("Single file download example:")
+    config_content = sandbox.fs.download_file(os.path.join(new_dir, "config.json"))
+    print("Config content:", config_content.decode("utf-8"))
+
+    # Create a report of all operations
+    report_data = f"""
+    Project Files Report:
+    ---------------------
+    Time: {datetime.now().isoformat()}
+    Files: {len(matches.files)} JSON files found
+    Config: {'Production mode' if b'"debug": false' in config_content else 'Debug mode'}
+    Script: {'Executed successfully' if script_result.exit_code == 0 else 'Failed'}
+    """.strip()
+
+    # Save the report
+    sandbox.fs.upload_file(report_data.encode("utf-8"), os.path.join(new_dir, "report.txt"))
+
+    # Clean up local file
+    os.remove(local_file_path)
+    if os.path.exists("local-config.json"):
+        os.remove("local-config.json")
+    if os.path.exists("local-script.sh"):
+        os.remove("local-script.sh")
+
+    # Delete the sandbox
+    daytona.delete(sandbox)
+
+
+if __name__ == "__main__":
+    main()
+```
+  </Tab>
+  <Tab title="TypeScript">
+```typescript
+import { Daytona } from '@daytonaio/sdk'
+import * as fs from 'fs'
+import * as path from 'path'
+
+async function main() {
+  const daytona = new Daytona()
+
+  //  first, create a sandbox
+  const sandbox = await daytona.create()
+
+  try {
+    console.log(`Created sandbox with ID: ${sandbox.id}`)
+
+    //  list files in the sandbox
+    const files = await sandbox.fs.listFiles('.')
+    console.log('Initial files:', files)
+
+    //  create a new directory in the sandbox
+    const newDir = 'project-files'
+    await sandbox.fs.createFolder(newDir, '755')
+
+    // Create a local file for demonstration
+    const localFilePath = 'local-example.txt'
+    fs.writeFileSync(localFilePath, 'This is a local file created for use case purposes')
+
+    // Create a configuration file with JSON data
+    const configData = JSON.stringify(
+      {
+        name: 'project-config',
+        version: '1.0.0',
+        settings: {
+          debug: true,
+          maxConnections: 10,
+        },
+      },
+      null,
+      2,
+    )
+
+    // Upload multiple files at once - both from local path and from buffers
+    await sandbox.fs.uploadFiles([
+      {
+        source: localFilePath,
+        destination: path.join(newDir, 'example.txt'),
+      },
+      {
+        source: Buffer.from(configData),
+        destination: path.join(newDir, 'config.json'),
+      },
+      {
+        source: Buffer.from('#!/bin/bash\necho "Hello from script!"\nexit 0'),
+        destination: path.join(newDir, 'script.sh'),
+      },
+    ])
+
+    // Execute commands on the sandbox to verify files and make them executable
+    console.log('Verifying uploaded files:')
+    const lsResult = await sandbox.process.executeCommand(`ls -la ${newDir}`)
+    console.log(lsResult.result)
+
+    // Make the script executable
+    await sandbox.process.executeCommand(`chmod +x ${path.join(newDir, 'script.sh')}`)
+
+    // Run the script
+    console.log('Running script:')
+    const scriptResult = await sandbox.process.executeCommand(`${path.join(newDir, 'script.sh')}`)
+    console.log(scriptResult.result)
+
+    //  search for files in the project
+    const matches = await sandbox.fs.searchFiles(newDir, '*.json')
+    console.log('JSON files found:', matches)
+
+    //  replace content in config file
+    await sandbox.fs.replaceInFiles([path.join(newDir, 'config.json')], '"debug": true', '"debug": false')
+
+    // Download multiple files - mix of local file and memory download
+    console.log('Downloading multiple files:')
+    const downloadResults = await sandbox.fs.downloadFiles([
+      {
+        source: path.join(newDir, 'config.json'),
+        destination: 'local-config.json',
+      },
+      {
+        source: path.join(newDir, 'example.txt'),
+      },
+      {
+        source: path.join(newDir, 'script.sh'),
+        destination: 'local-script.sh',
+      },
+    ])
+
+    for (const result of downloadResults) {
+      if (result.error) {
+        console.error(`Error downloading ${result.source}: ${result.error}`)
+      } else if (typeof result.result === 'string') {
+        console.log(`Downloaded ${result.source} to ${result.result}`)
+      } else {
+        console.log(`Downloaded ${result.source} to memory (${result.result?.length} bytes)`)
+      }
+    }
+
+    // Single file download example
+    console.log('Single file download example:')
+    const reportBuffer = await sandbox.fs.downloadFile(path.join(newDir, 'config.json'))
+    console.log('Config content:', reportBuffer.toString())
+
+    // Create a report of all operations
+    const reportData = `
+Project Files Report:
+---------------------
+Time: ${new Date().toISOString()}
+Files: ${matches.files.length} JSON files found
+Config: ${reportBuffer.includes('"debug": false') ? 'Production mode' : 'Debug mode'}
+Script: ${scriptResult.exitCode === 0 ? 'Executed successfully' : 'Failed'}
+    `.trim()
+
+    // Save the report
+    await sandbox.fs.uploadFile(Buffer.from(reportData), path.join(newDir, 'report.txt'))
+
+    // Clean up local file
+    fs.unlinkSync(localFilePath)
+    if (fs.existsSync('local-config.json')) fs.unlinkSync('local-config.json')
+    if (fs.existsSync('local-script.sh')) fs.unlinkSync('local-script.sh')
+  } catch (error) {
+    console.error('Error:', error)
+  } finally {
+    //  cleanup
+    await daytona.delete(sandbox)
+  }
+}
+
+main()
+```
+  </Tab>
+  <Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/options"
+	"github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+)
+
+func main() {
+	client, err := daytona.NewClient()
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	log.Println("Creating sandbox...")
+	params := types.SnapshotParams{
+		SandboxBaseParams: types.SandboxBaseParams{
+			Language: types.CodeLanguagePython,
+		},
+	}
+
+	sandbox, err := client.Create(ctx, params, options.WithTimeout(90*time.Second))
+	if err != nil {
+		log.Fatalf("Failed to create sandbox: %v", err)
+	}
+
+	log.Printf("✓ Created sandbox: %s (ID: %s)\n", sandbox.Name, sandbox.ID)
+	defer func() {
+		log.Println("\nCleaning up...")
+		if err := sandbox.Delete(ctx); err != nil {
+			log.Printf("Failed to delete sandbox: %v", err)
+		} else {
+			log.Println("✓ Sandbox deleted")
+		}
+	}()
+
+	// File system operations
+	log.Println("\nPerforming file operations...")
+
+	// Create a test file
+	testContent := []byte("Hello, Daytona!\nThis is a test file.")
+	testPath := "/tmp/test.txt"
+
+	if err := sandbox.FileSystem.UploadFile(ctx, testContent, testPath); err != nil {
+		log.Fatalf("Failed to upload file: %v", err)
+	}
+	log.Printf("✓ Uploaded file to %s\n", testPath)
+
+	// Download the file
+	downloadedContent, err := sandbox.FileSystem.DownloadFile(ctx, testPath, nil)
+	if err != nil {
+		log.Fatalf("Failed to download file: %v", err)
+	}
+	log.Printf("✓ Downloaded file content: %s\n", string(downloadedContent))
+
+	// Create a folder
+	folderPath := "/tmp/test-folder"
+	if err := sandbox.FileSystem.CreateFolder(ctx, folderPath); err != nil {
+		log.Fatalf("Failed to create folder: %v", err)
+	}
+	log.Printf("✓ Created folder at %s\n", folderPath)
+
+	// List files in /tmp
+	files, err := sandbox.FileSystem.ListFiles(ctx, "/tmp")
+	if err != nil {
+		log.Fatalf("Failed to list files: %v", err)
+	}
+	log.Printf("\nFiles in /tmp:\n")
+	for _, file := range files {
+		log.Printf("  - %s (%d bytes)\n", file.Name, file.Size)
+	}
+
+	log.Println("\n✓ All file operations completed successfully!")
+}
+```
+  </Tab>
+</Tabs>
+
+## Expected Output
+
+```
+Created sandbox with ID: sandbox-abc123
+Initial files: [...]
+Verifying uploaded files:
+total 16
+drwxr-xr-x 2 daytona daytona 4096 Feb 20 12:00 .
+drwxr-xr-x 3 daytona daytona 4096 Feb 20 12:00 ..
+-rw-r--r-- 1 daytona daytona  123 Feb 20 12:00 config.json
+-rw-r--r-- 1 daytona daytona   56 Feb 20 12:00 example.txt
+-rwxr-xr-x 1 daytona daytona   45 Feb 20 12:00 script.sh
+
+Running script:
+Hello from script!
+
+JSON files found: {"files": ["project-files/config.json"], "total": 1}
+
+Downloading multiple files:
+Downloaded project-files/config.json to local-config.json
+Downloaded project-files/example.txt to memory (56 bytes)
+Downloaded project-files/script.sh to local-script.sh
+
+Single file download example:
+Config content: {
+  "name": "project-config",
+  "version": "1.0.0",
+  "settings": {
+    "debug": false,
+    "maxConnections": 10
+  }
+}
+```
+
+## Key Concepts
+
+### Upload Strategies
+
+You can upload files from different sources:
+
+<CodeGroup>
+```python Python
+# From local file path
+FileUpload(source="./local.txt", destination="/remote.txt")
+
+# From bytes in memory
+FileUpload(source=b"content", destination="/remote.txt")
+
+# From string
+FileUpload(source="content".encode(), destination="/remote.txt")
+```
+
+```typescript TypeScript
+// From local file path
+{ source: './local.txt', destination: '/remote.txt' }
+
+// From Buffer
+{ source: Buffer.from('content'), destination: '/remote.txt' }
+```
+
+```go Go
+// Upload from bytes
+content := []byte("Hello, World!")
+err := sandbox.FileSystem.UploadFile(ctx, content, "/remote.txt")
+```
+</CodeGroup>
+
+### Download Strategies
+
+Download files to different destinations:
+
+<CodeGroup>
+```python Python
+# To local file
+FileDownloadRequest(source="/remote.txt", destination="./local.txt")
+
+# To memory (returns bytes)
+FileDownloadRequest(source="/remote.txt")
+```
+
+```typescript TypeScript
+// To local file
+{ source: '/remote.txt', destination: './local.txt' }
+
+// To memory (returns Buffer)
+{ source: '/remote.txt' }
+```
+
+```go Go
+// Download to memory
+content, err := sandbox.FileSystem.DownloadFile(ctx, "/remote.txt", nil)
+
+// Download to local file
+path := "./local.txt"
+content, err := sandbox.FileSystem.DownloadFile(ctx, "/remote.txt", &path)
+```
+</CodeGroup>
+
+### Searching Files
+
+Use glob patterns to search for files:
+
+```python
+# Find all JSON files
+matches = sandbox.fs.search_files("/project", "*.json")
+
+# Find all Python files in subdirectories
+matches = sandbox.fs.search_files("/project", "**/*.py")
+```
+
+### Replacing Content
+
+Search and replace across multiple files:
+
+```python
+sandbox.fs.replace_in_files(
+    ["config.json", "settings.json"],
+    '"debug": true',
+    '"debug": false'
+)
+```
+
+## Best Practices
+
+<Tip>
+**Batch uploads**: Use `uploadFiles()` for multiple files instead of multiple `uploadFile()` calls for better performance.
+</Tip>
+
+<Warning>
+**File permissions**: When uploading scripts, remember to set execute permissions using `chmod` or specify permissions during upload.
+</Warning>
+
+<Note>
+**Path handling**: Always use absolute paths or paths relative to the sandbox's working directory to avoid ambiguity.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Git Workflow" icon="git" href="/examples/git-workflow">
+    Clone repositories and work with Git
+  </Card>
+  <Card title="Code Execution" icon="code" href="/examples/code-execution">
+    Run code in your sandboxes
+  </Card>
+</CardGroup>

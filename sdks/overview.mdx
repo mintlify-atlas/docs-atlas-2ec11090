@@ -1,0 +1,295 @@
+---
+title: SDK Overview
+description: Choose the right Daytona SDK for your programming language
+---
+
+Daytona provides official SDKs in multiple programming languages to interact with the Daytona API. All SDKs offer the same core functionality for managing sandboxes, executing code, performing file operations, and more.
+
+## Available SDKs
+
+<CardGroup cols={2}>
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Install with `pip install daytona`
+  </Card>
+  <Card title="TypeScript SDK" icon="js" href="/sdks/typescript">
+    Install with `npm install @daytonaio/sdk`
+  </Card>
+  <Card title="Go SDK" icon="golang" href="/sdks/go">
+    Import `github.com/daytonaio/daytona/libs/sdk-go`
+  </Card>
+  <Card title="Ruby SDK" icon="gem" href="/sdks/ruby">
+    Install with `gem install daytona`
+  </Card>
+</CardGroup>
+
+## SDK Comparison
+
+All SDKs provide consistent functionality across languages:
+
+| Feature | Python | TypeScript | Go | Ruby |
+|---------|--------|------------|----|----- |
+| Sandbox Management | ✓ | ✓ | ✓ | ✓ |
+| Code Execution | ✓ | ✓ | ✓ | ✓ |
+| File Operations | ✓ | ✓ | ✓ | ✓ |
+| Git Operations | ✓ | ✓ | ✓ | ✓ |
+| Language Server Protocol | ✓ | ✓ | ✓ | ✓ |
+| Process Management | ✓ | ✓ | ✓ | ✓ |
+| Async/Await Support | ✓ | ✓ | Native | - |
+| Type Safety | Hints | Full | Full | Dynamic |
+
+## Choosing an SDK
+
+### Python SDK
+
+Best for:
+- Data science and AI/ML workflows
+- Scripting and automation
+- Rapid prototyping
+- Projects already using Python
+
+**Key Features:**
+- Both sync and async APIs
+- Type hints for better IDE support
+- Native integration with data science libraries
+
+### TypeScript/JavaScript SDK
+
+Best for:
+- Web applications and APIs
+- Node.js backends
+- Full-stack JavaScript projects
+- Modern web development workflows
+
+**Key Features:**
+- Full TypeScript type definitions
+- Promise-based async operations
+- Works in both Node.js and browser environments
+
+### Go SDK
+
+Best for:
+- High-performance applications
+- System-level programming
+- Cloud-native applications
+- Concurrent workloads
+
+**Key Features:**
+- Native concurrency with goroutines
+- Strong type safety
+- Excellent performance
+- Context-based cancellation
+
+### Ruby SDK
+
+Best for:
+- Ruby on Rails applications
+- Ruby scripting
+- Web applications built with Ruby
+- Projects in the Ruby ecosystem
+
+**Key Features:**
+- Idiomatic Ruby patterns
+- Clean, readable syntax
+- Integration with Ruby frameworks
+
+## Core Concepts
+
+All SDKs follow the same conceptual model:
+
+### 1. Client Initialization
+
+Create a Daytona client with your API credentials:
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    from daytona import Daytona
+    
+    daytona = Daytona()  # Uses DAYTONA_API_KEY env var
+    ```
+  </Tab>
+  <Tab title="TypeScript">
+    ```typescript
+    import { Daytona } from '@daytonaio/sdk'
+    
+    const daytona = new Daytona()  // Uses DAYTONA_API_KEY env var
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+    
+    client, err := daytona.NewClient()  // Uses DAYTONA_API_KEY env var
+    ```
+  </Tab>
+  <Tab title="Ruby">
+    ```ruby
+    require 'daytona'
+    
+    daytona = Daytona::Daytona.new  # Uses DAYTONA_API_KEY env var
+    ```
+  </Tab>
+</Tabs>
+
+### 2. Sandbox Creation
+
+Create isolated execution environments:
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    sandbox = daytona.create()
+    ```
+  </Tab>
+  <Tab title="TypeScript">
+    ```typescript
+    const sandbox = await daytona.create()
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    sandbox, err := client.Create(ctx, params)
+    ```
+  </Tab>
+  <Tab title="Ruby">
+    ```ruby
+    sandbox = daytona.create
+    ```
+  </Tab>
+</Tabs>
+
+### 3. Code Execution
+
+Run code in sandboxes:
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    response = sandbox.process.code_run('print("Hello!")')
+    print(response.result)
+    ```
+  </Tab>
+  <Tab title="TypeScript">
+    ```typescript
+    const response = await sandbox.process.codeRun('console.log("Hello!")')
+    console.log(response.result)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := sandbox.Process.ExecuteCommand(ctx, "echo 'Hello!'")
+    fmt.Println(result.Result)
+    ```
+  </Tab>
+  <Tab title="Ruby">
+    ```ruby
+    response = sandbox.process.exec(command: 'echo "Hello!"')
+    puts response.result
+    ```
+  </Tab>
+</Tabs>
+
+### 4. Resource Cleanup
+
+Always clean up resources when done:
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    daytona.delete(sandbox)
+    ```
+  </Tab>
+  <Tab title="TypeScript">
+    ```typescript
+    await daytona.delete(sandbox)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    defer sandbox.Delete(ctx)
+    ```
+  </Tab>
+  <Tab title="Ruby">
+    ```ruby
+    daytona.delete(sandbox)
+    ```
+  </Tab>
+</Tabs>
+
+## Authentication
+
+All SDKs support the same authentication methods:
+
+### Environment Variables
+
+Set these environment variables:
+
+```bash
+export DAYTONA_API_KEY="your-api-key"
+export DAYTONA_API_URL="https://app.daytona.io/api"  # Optional
+export DAYTONA_TARGET="us"  # Optional
+```
+
+### Programmatic Configuration
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    from daytona import Daytona, DaytonaConfig
+    
+    config = DaytonaConfig(
+        api_key="your-api-key",
+        api_url="https://app.daytona.io/api",
+        target="us"
+    )
+    daytona = Daytona(config)
+    ```
+  </Tab>
+  <Tab title="TypeScript">
+    ```typescript
+    import { Daytona } from '@daytonaio/sdk'
+    
+    const daytona = new Daytona({
+      apiKey: 'your-api-key',
+      apiUrl: 'https://app.daytona.io/api',
+      target: 'us'
+    })
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+    
+    config := &types.DaytonaConfig{
+        APIKey: "your-api-key",
+    }
+    client, err := daytona.NewClientWithConfig(config)
+    ```
+  </Tab>
+  <Tab title="Ruby">
+    ```ruby
+    config = Daytona::Config.new(
+      api_key: 'your-api-key',
+      target: 'us'
+    )
+    daytona = Daytona::Daytona.new(config)
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Python SDK Guide" icon="python" href="/sdks/python">
+    Complete guide for the Python SDK
+  </Card>
+  <Card title="TypeScript SDK Guide" icon="js" href="/sdks/typescript">
+    Complete guide for the TypeScript SDK
+  </Card>
+  <Card title="Go SDK Guide" icon="golang" href="/sdks/go">
+    Complete guide for the Go SDK
+  </Card>
+  <Card title="Ruby SDK Guide" icon="gem" href="/sdks/ruby">
+    Complete guide for the Ruby SDK
+  </Card>
+</CardGroup>

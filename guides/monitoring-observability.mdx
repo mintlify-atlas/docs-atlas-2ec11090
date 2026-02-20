@@ -1,0 +1,410 @@
+---
+title: Monitoring & Observability
+description: Monitor Daytona sandbox metrics with OpenTelemetry, Prometheus, and Grafana for comprehensive observability
+---
+
+## Overview
+
+Daytona provides built-in OpenTelemetry (OTEL) integration for monitoring sandbox resource utilization. Export metrics to popular observability platforms like Grafana Cloud, New Relic, or any OTLP-compatible backend.
+
+## Available Metrics
+
+Daytona sandboxes expose the following resource metrics:
+
+### CPU Metrics
+
+| Metric | Prometheus Name | Description | Unit |
+|--------|----------------|-------------|------|
+| `daytona.sandbox.cpu.utilization` | `daytona_sandbox_cpu_utilization_percent` | CPU usage percentage | % (0-100) |
+| `daytona.sandbox.cpu.limit` | `daytona_sandbox_cpu_limit_cores` | CPU cores limit | cores |
+
+### Memory Metrics
+
+| Metric | Prometheus Name | Description | Unit |
+|--------|----------------|-------------|------|
+| `daytona.sandbox.memory.utilization` | `daytona_sandbox_memory_utilization_percent` | Memory usage percentage | % (0-100) |
+| `daytona.sandbox.memory.usage` | `daytona_sandbox_memory_usage_bytes` | Memory used | bytes |
+| `daytona.sandbox.memory.limit` | `daytona_sandbox_memory_limit_bytes` | Memory limit | bytes |
+
+### Disk Metrics
+
+| Metric | Prometheus Name | Description | Unit |
+|--------|----------------|-------------|------|
+| `daytona.sandbox.filesystem.utilization` | `daytona_sandbox_filesystem_utilization_percent` | Disk usage percentage | % (0-100) |
+| `daytona.sandbox.filesystem.usage` | `daytona_sandbox_filesystem_usage_bytes` | Disk space used | bytes |
+| `daytona.sandbox.filesystem.available` | `daytona_sandbox_filesystem_available_bytes` | Available disk space | bytes |
+| `daytona.sandbox.filesystem.total` | `daytona_sandbox_filesystem_total_bytes` | Total disk space | bytes |
+
+### Labels
+
+All metrics include the `service_name` label identifying the sandbox.
+
+## Quick Start
+
+### 1. Configure OTLP Export
+
+Enable OpenTelemetry metric export in your Daytona dashboard:
+
+1. Go to [Daytona Dashboard](https://app.daytona.io)
+2. Navigate to **Settings** → **Experimental**
+3. Configure OTLP settings:
+   - **OTLP Endpoint**: Your collector endpoint (e.g., `https://otlp-gateway-prod-eu-central-0.grafana.net/otlp`)
+   - **OTLP Headers**: Authorization header (e.g., `Authorization=Basic <token>`)
+4. Click **Save**
+
+### 2. Verify Metrics Flow
+
+Create a sandbox and verify metrics are being exported:
+
+```typescript
+import { createSandbox } from '@daytona/sdk';
+
+// Create sandbox to generate metrics
+const sandbox = await createSandbox({
+  name: 'test-metrics',
+});
+
+// Run some workload
+await sandbox.exec('stress --cpu 2 --timeout 60s');
+
+// Metrics are automatically exported to your OTLP endpoint
+```
+
+Verify in your observability platform that metrics are appearing with the prefix `daytona_sandbox_*`.
+
+## Integration Guides
+
+### Grafana Cloud
+
+**Step 1: Create Grafana Cloud Account**
+
+1. Go to [grafana.com](https://grafana.com) and create a free account
+2. Create a new stack (choose a region close to you)
+
+**Step 2: Set Up OpenTelemetry Connection**
+
+1. In Grafana Cloud Portal, go to **Connections** → **Add new connection**
+2. Search for **OpenTelemetry (OTLP)** and select it
+3. Follow setup wizard:
+   - Choose **OpenTelemetry SDK**
+   - Choose **Linux** infrastructure
+4. Create a Grafana Cloud Access token:
+   - Name: `daytona-otel-token`
+   - Scopes: **All scopes**
+   - Save the token securely
+5. Note your configuration values:
+   - `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g., `https://otlp-gateway-prod-eu-central-0.grafana.net/otlp`)
+   - `OTEL_EXPORTER_OTLP_HEADERS` (e.g., `Authorization=Basic MTUxNzAz...`)
+
+**Step 3: Configure Daytona**
+
+Enter the values in Daytona Dashboard **Settings** → **Experimental**:
+- **OTLP Endpoint**: The endpoint URL from Grafana
+- **OTLP Headers**: The Authorization header from Grafana
+
+**Step 4: Import Dashboard**
+
+1. Download the [Grafana dashboard template](https://github.com/daytonaio/daytona/blob/main/examples/otel-dashboards/grafana/dashboard.json)
+2. In Grafana Cloud, click **Dashboards** → **New** → **Import**
+3. Upload `dashboard.json`
+4. Select your Prometheus data source
+5. Click **Import**
+
+**Dashboard Features:**
+
+- **Resource Overview**: High-level metrics across all sandboxes
+- **CPU Details**: Detailed CPU utilization, limits, and heatmaps
+- **Memory Details**: Memory usage patterns and limits
+- **Disk Details**: Filesystem usage and space breakdown
+- **Alert Thresholds**: Pre-configured warning and critical levels
+
+**Reference:** [Grafana Dashboard Example](https://github.com/daytonaio/daytona/tree/main/examples/otel-dashboards/grafana)
+
+### Prometheus + Grafana (Self-Hosted)
+
+**Step 1: Deploy OpenTelemetry Collector**
+
+```yaml
+# otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: daytona
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]
+```
+
+```bash
+# Run collector
+docker run -d \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  -p 8889:8889 \
+  -v $(pwd)/otel-collector-config.yaml:/etc/otel-collector-config.yaml \
+  otel/opentelemetry-collector \
+  --config=/etc/otel-collector-config.yaml
+```
+
+**Step 2: Configure Prometheus**
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'daytona-sandboxes'
+    static_configs:
+      - targets: ['otel-collector:8889']
+```
+
+**Step 3: Set Up Grafana**
+
+1. Add Prometheus data source in Grafana
+2. Import the Daytona dashboard template
+3. Start monitoring sandbox metrics
+
+### New Relic
+
+1. Get your New Relic OTLP endpoint and API key
+2. Configure in Daytona Dashboard:
+   - **Endpoint**: `https://otlp.nr-data.net:4318`
+   - **Headers**: `api-key=<YOUR_NEW_RELIC_LICENSE_KEY>`
+3. View metrics in New Relic under **Metrics & Events**
+
+**Reference:** [New Relic Dashboard Example](https://github.com/daytonaio/daytona/tree/main/examples/otel-dashboards/new-relic)
+
+## Query Examples
+
+### PromQL Queries
+
+**CPU Utilization Over Time:**
+
+```promql
+avg(daytona_sandbox_cpu_utilization_percent{service_name=~".*"}) by (service_name)
+```
+
+**High Memory Usage Alerts:**
+
+```promql
+daytona_sandbox_memory_utilization_percent > 80
+```
+
+**Disk Space Remaining:**
+
+```promql
+daytona_sandbox_filesystem_available_bytes / daytona_sandbox_filesystem_total_bytes * 100
+```
+
+**Resource Pressure Score:**
+
+```promql
+(
+  avg(daytona_sandbox_cpu_utilization_percent) * 0.4 +
+  avg(daytona_sandbox_memory_utilization_percent) * 0.4 +
+  avg(daytona_sandbox_filesystem_utilization_percent) * 0.2
+) by (service_name)
+```
+
+**Top CPU Consumers:**
+
+```promql
+topk(5, avg_over_time(daytona_sandbox_cpu_utilization_percent[5m]))
+```
+
+### Alert Rules
+
+```yaml
+# prometheus-alerts.yml
+groups:
+  - name: daytona_sandbox_alerts
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: daytona_sandbox_cpu_utilization_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sandbox {{ $labels.service_name }} CPU usage high"
+          description: "CPU usage is {{ $value }}%"
+      
+      - alert: HighMemoryUsage
+        expr: daytona_sandbox_memory_utilization_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Sandbox {{ $labels.service_name }} memory critical"
+          description: "Memory usage is {{ $value }}%"
+      
+      - alert: DiskSpaceLow
+        expr: daytona_sandbox_filesystem_utilization_percent > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sandbox {{ $labels.service_name }} disk space low"
+          description: "Disk usage is {{ $value }}%"
+```
+
+## Programmatic Monitoring
+
+### Query Metrics via API
+
+```typescript
+import { Daytona } from '@daytona/sdk';
+
+const daytona = new Daytona();
+
+// Get sandbox metrics
+const sandbox = await daytona.getSandbox('sandbox-id');
+const metrics = await sandbox.getMetrics();
+
+console.log('CPU Usage:', metrics.cpu.utilization, '%');
+console.log('Memory Usage:', metrics.memory.utilization, '%');
+console.log('Disk Usage:', metrics.disk.utilization, '%');
+
+// Alert if thresholds exceeded
+if (metrics.cpu.utilization > 85) {
+  await sendAlert('High CPU usage detected');
+}
+```
+
+### Custom Metrics Collection
+
+```python
+from daytona_sdk import Daytona
+import time
+import csv
+
+client = Daytona()
+sandbox = client.get_sandbox('sandbox-id')
+
+# Collect metrics over time
+with open('metrics.csv', 'w') as f:
+    writer = csv.writer(f)
+    writer.writerow(['timestamp', 'cpu', 'memory', 'disk'])
+    
+    for _ in range(60):  # Collect for 1 hour
+        metrics = sandbox.get_metrics()
+        writer.writerow([
+            time.time(),
+            metrics.cpu.utilization,
+            metrics.memory.utilization,
+            metrics.disk.utilization,
+        ])
+        time.sleep(60)  # Every minute
+```
+
+## Best Practices
+
+### Alert Thresholds
+
+Recommended warning and critical levels:
+
+| Resource | Warning | Critical |
+|----------|---------|----------|
+| CPU | 70% | 85% |
+| Memory | 80% | 90% |
+| Disk | 75% | 85% |
+
+### Retention Policies
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+storage:
+  tsdb:
+    retention.time: 15d
+    retention.size: 50GB
+```
+
+### High Cardinality
+
+For environments with many sandboxes:
+
+- Use longer aggregation intervals
+- Filter to specific service names
+- Reduce retention period
+- Consider downsampling old data
+
+### Monitoring Multi-Agent Systems
+
+```typescript
+// Tag sandboxes by role for better filtering
+const managerSandbox = await createSandbox({
+  name: 'manager-agent',
+  labels: {
+    role: 'manager',
+    system: 'multi-agent-v1',
+  },
+});
+
+const workerSandbox = await createSandbox({
+  name: 'worker-agent-1',
+  labels: {
+    role: 'worker',
+    system: 'multi-agent-v1',
+  },
+});
+
+// Query by role
+// avg(daytona_sandbox_cpu_utilization_percent{role="worker"})
+```
+
+## Troubleshooting
+
+### No Metrics Appearing
+
+1. **Verify OTLP configuration** in Daytona Dashboard
+2. **Create test sandbox** and run workload
+3. **Check endpoint connectivity**:
+   ```bash
+   curl -X POST https://your-otlp-endpoint/v1/metrics \
+     -H "Authorization: Basic <token>"
+   ```
+4. **Verify time range** in your observability platform
+
+### High Cardinality Warnings
+
+```promql
+# Check number of unique sandboxes
+count(count by (service_name) (daytona_sandbox_cpu_utilization_percent))
+```
+
+If too high, consider:
+- Filtering to active sandboxes only
+- Using recording rules
+- Increasing aggregation intervals
+
+### Missing Labels
+
+```promql
+# Verify labels are present
+daytona_sandbox_cpu_utilization_percent{service_name="test-sandbox"}
+```
+
+Ensure metric names and label names match exactly (underscores, not dots).
+
+## Related Resources
+
+- [Multi-Agent Systems](/guides/multi-agent-systems) - Monitor agent coordination
+- [Data Analysis](/guides/data-analysis) - Track analysis workflows
+- [SDK Reference](/sdks/overview) - Programmatic metric access
+- [OpenTelemetry Docs](https://opentelemetry.io/docs/) - OTEL specification

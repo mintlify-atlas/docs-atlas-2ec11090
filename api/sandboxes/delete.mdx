@@ -1,0 +1,157 @@
+---
+title: Delete Sandbox
+description: Permanently delete a sandbox
+api: DELETE /sandbox/{sandboxIdOrName}
+---
+
+Permanently deletes a sandbox and all associated resources. This action cannot be undone.
+
+## Headers
+
+<ParamField header="X-Daytona-Organization-ID" type="string">
+  Use with JWT to specify the organization ID
+</ParamField>
+
+## Path Parameters
+
+<ParamField path="sandboxIdOrName" type="string" required>
+  ID or name of the sandbox to delete
+</ParamField>
+
+## Response
+
+Returns the deleted sandbox object with the updated state.
+
+<ResponseField name="id" type="string">
+  The unique identifier of the sandbox
+</ResponseField>
+
+<ResponseField name="organizationId" type="string">
+  The organization ID of the sandbox
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The name of the sandbox
+</ResponseField>
+
+<ResponseField name="snapshot" type="string">
+  The snapshot used for the sandbox
+</ResponseField>
+
+<ResponseField name="user" type="string">
+  The user associated with the sandbox
+</ResponseField>
+
+<ResponseField name="env" type="object">
+  Environment variables for the sandbox
+</ResponseField>
+
+<ResponseField name="labels" type="object">
+  Labels for the sandbox
+</ResponseField>
+
+<ResponseField name="public" type="boolean">
+  Whether the sandbox HTTP preview is public
+</ResponseField>
+
+<ResponseField name="networkBlockAll" type="boolean">
+  Whether all network access is blocked
+</ResponseField>
+
+<ResponseField name="target" type="string">
+  The target environment for the sandbox
+</ResponseField>
+
+<ResponseField name="cpu" type="number">
+  The CPU quota for the sandbox
+</ResponseField>
+
+<ResponseField name="gpu" type="number">
+  The GPU quota for the sandbox
+</ResponseField>
+
+<ResponseField name="memory" type="number">
+  The memory quota for the sandbox in GB
+</ResponseField>
+
+<ResponseField name="disk" type="number">
+  The disk quota for the sandbox in GB
+</ResponseField>
+
+<ResponseField name="state" type="string">
+  The current state of the sandbox (will be `destroying` or `destroyed`)
+  
+  **Options:** `destroying`, `destroyed`
+</ResponseField>
+
+<ResponseField name="desiredState" type="string">
+  The desired state of the sandbox
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  The creation timestamp of the sandbox
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  The last update timestamp of the sandbox
+</ResponseField>
+
+<ResponseField name="runnerId" type="string">
+  The runner ID of the sandbox
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.daytona.io/sandbox/sandbox123 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "X-Daytona-Organization-ID: your-org-id"
+```
+
+```bash cURL with Name
+curl -X DELETE https://api.daytona.io/sandbox/my-development-sandbox \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "X-Daytona-Organization-ID: your-org-id"
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json Response
+{
+  "id": "sandbox123",
+  "organizationId": "org456",
+  "name": "my-development-sandbox",
+  "snapshot": "ubuntu-4vcpu-8ram-100gb",
+  "user": "daytona",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "labels": {
+    "project": "my-app",
+    "environment": "dev"
+  },
+  "public": false,
+  "networkBlockAll": false,
+  "target": "us-east-1",
+  "cpu": 4,
+  "gpu": 0,
+  "memory": 8,
+  "disk": 100,
+  "state": "destroying",
+  "desiredState": "destroyed",
+  "createdAt": "2024-10-01T12:00:00Z",
+  "updatedAt": "2024-10-01T18:00:00Z",
+  "runnerId": "runner789"
+}
+```
+
+</ResponseExample>
+
+## Notes
+
+- This operation is irreversible and will permanently delete the sandbox
+- All data stored in the sandbox will be lost unless backed up
+- Attached volumes are not automatically deleted and must be managed separately
+- The sandbox state will transition to `destroying` and eventually to `destroyed`

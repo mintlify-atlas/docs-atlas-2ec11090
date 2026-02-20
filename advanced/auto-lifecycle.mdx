@@ -1,0 +1,371 @@
+---
+title: Auto Lifecycle
+description: Configure automatic stop, archive, and delete intervals for Daytona sandboxes
+---
+
+## Overview
+
+Daytona provides automatic lifecycle management to optimize resource usage and costs. Sandboxes can be configured to automatically stop, archive, or delete after periods of inactivity.
+
+## Lifecycle Stages
+
+| Stage | Description | Data Preservation |
+|-------|-------------|-------------------|
+| **Running** | Sandbox is active and consuming resources | Full state |
+| **Stopped** | Sandbox is paused, disk persisted | Full state |
+| **Archived** | Sandbox stored in cold storage | Full state |
+| **Deleted** | Sandbox permanently removed | None |
+
+## Auto-Stop
+
+Automatically stop sandboxes after a period of inactivity.
+
+### Configure Auto-Stop
+
+<CodeGroup>
+```typescript TypeScript
+import { Daytona } from '@daytonaio/sdk'
+
+const daytona = new Daytona()
+
+// Auto-stop after 30 minutes of inactivity
+const sandbox = await daytona.create({
+  autoStopInterval: 30  // minutes
+})
+
+console.log(`Auto-stop interval: ${sandbox.autoStopInterval} minutes`)
+```
+
+```python Python
+from daytona_sdk import Daytona
+
+daytona = Daytona()
+
+# Auto-stop after 30 minutes of inactivity
+sandbox = daytona.create(
+    auto_stop_interval=30  # minutes
+)
+
+print(f'Auto-stop interval: {sandbox.auto_stop_interval} minutes')
+```
+</CodeGroup>
+
+### Update Auto-Stop Interval
+
+<CodeGroup>
+```typescript TypeScript
+// Change auto-stop interval on existing sandbox
+await sandbox.setAutostopInterval(60)  // 1 hour
+
+// Disable auto-stop
+await sandbox.setAutostopInterval(0)
+
+await sandbox.refreshData()
+console.log(`New auto-stop: ${sandbox.autoStopInterval} minutes`)
+```
+
+```python Python
+# Change auto-stop interval on existing sandbox
+sandbox.set_autostop_interval(60)  # 1 hour
+
+# Disable auto-stop
+sandbox.set_autostop_interval(0)
+
+sandbox.refresh_data()
+print(f'New auto-stop: {sandbox.auto_stop_interval} minutes')
+```
+</CodeGroup>
+
+### Default Auto-Stop
+
+If not specified, sandboxes use a default auto-stop interval of **15 minutes**.
+
+## Auto-Archive
+
+Automatically archive sandboxes that have been stopped for a specified period.
+
+### Configure Auto-Archive
+
+<CodeGroup>
+```typescript TypeScript
+// Auto-archive after 24 hours of being stopped
+const sandbox = await daytona.create({
+  autoArchiveInterval: 1440  // 24 hours = 1440 minutes
+})
+
+console.log(`Auto-archive interval: ${sandbox.autoArchiveInterval} minutes`)
+```
+
+```python Python
+# Auto-archive after 24 hours of being stopped
+sandbox = daytona.create(
+    auto_archive_interval=1440  # 24 hours = 1440 minutes
+)
+
+print(f'Auto-archive interval: {sandbox.auto_archive_interval} minutes')
+```
+</CodeGroup>
+
+### Update Auto-Archive Interval
+
+<CodeGroup>
+```typescript TypeScript
+// Change to 1 hour
+await sandbox.setAutoArchiveInterval(60)
+
+// Use maximum interval (organization default)
+await sandbox.setAutoArchiveInterval(0)
+
+await sandbox.refreshData()
+console.log(`New auto-archive: ${sandbox.autoArchiveInterval} minutes`)
+```
+
+```python Python
+# Change to 1 hour
+sandbox.set_auto_archive_interval(60)
+
+# Use maximum interval (organization default)
+sandbox.set_auto_archive_interval(0)
+
+sandbox.refresh_data()
+print(f'New auto-archive: {sandbox.auto_archive_interval} minutes')
+```
+</CodeGroup>
+
+### Default Auto-Archive
+
+If not specified, sandboxes use a default auto-archive interval of **7 days** (10,080 minutes).
+
+## Auto-Delete
+
+Automatically delete sandboxes that have been stopped for a specified period.
+
+<Warning>
+Auto-delete permanently removes sandboxes and all their data. This action cannot be undone.
+</Warning>
+
+### Configure Auto-Delete
+
+<CodeGroup>
+```typescript TypeScript
+// Auto-delete after 7 days of being stopped
+const sandbox = await daytona.create({
+  autoDeleteInterval: 10080  // 7 days = 10080 minutes
+})
+
+console.log(`Auto-delete interval: ${sandbox.autoDeleteInterval} minutes`)
+```
+
+```python Python
+# Auto-delete after 7 days of being stopped
+sandbox = daytona.create(
+    auto_delete_interval=10080  # 7 days = 10080 minutes
+)
+
+print(f'Auto-delete interval: {sandbox.auto_delete_interval} minutes')
+```
+</CodeGroup>
+
+### Update Auto-Delete Interval
+
+<CodeGroup>
+```typescript TypeScript
+// Enable auto-delete after 1 day
+await sandbox.setAutoDeleteInterval(1440)
+
+// Delete immediately upon stopping
+await sandbox.setAutoDeleteInterval(0)
+
+// Disable auto-delete
+await sandbox.setAutoDeleteInterval(-1)
+
+await sandbox.refreshData()
+console.log(`Auto-delete: ${sandbox.autoDeleteInterval} minutes`)
+```
+
+```python Python
+# Enable auto-delete after 1 day
+sandbox.set_auto_delete_interval(1440)
+
+# Delete immediately upon stopping
+sandbox.set_auto_delete_interval(0)
+
+# Disable auto-delete
+sandbox.set_auto_delete_interval(-1)
+
+sandbox.refresh_data()
+print(f'Auto-delete: {sandbox.auto_delete_interval} minutes')
+```
+</CodeGroup>
+
+### Default Auto-Delete
+
+By default, auto-delete is **disabled** (`autoDeleteInterval = -1`).
+
+## Ephemeral Sandboxes
+
+Create sandboxes that are automatically deleted when stopped:
+
+<CodeGroup>
+```typescript TypeScript
+// Ephemeral sandbox - deleted immediately upon stopping
+const ephemeralSandbox = await daytona.create({
+  ephemeral: true
+})
+
+// Equivalent to:
+// await daytona.create({ autoDeleteInterval: 0 })
+
+console.log(`Auto-delete: ${ephemeralSandbox.autoDeleteInterval}`)  // 0
+```
+
+```python Python
+# Ephemeral sandbox - deleted immediately upon stopping
+ephemeral_sandbox = daytona.create(ephemeral=True)
+
+# Equivalent to:
+# daytona.create(auto_delete_interval=0)
+
+print(f'Auto-delete: {ephemeral_sandbox.auto_delete_interval}')  # 0
+```
+</CodeGroup>
+
+## Lifecycle Configuration Examples
+
+### Development Environment
+
+```typescript
+// Development sandbox with moderate lifecycle
+const devSandbox = await daytona.create({
+  autoStopInterval: 60,      // Stop after 1 hour idle
+  autoArchiveInterval: 1440, // Archive after 1 day stopped
+  autoDeleteInterval: -1,    // Never auto-delete
+  labels: {
+    environment: 'development'
+  }
+})
+```
+
+### CI/CD Pipeline Sandbox
+
+```typescript
+// Short-lived CI sandbox
+const ciSandbox = await daytona.create({
+  autoStopInterval: 5,      // Stop after 5 minutes idle
+  autoDeleteInterval: 60,   // Delete after 1 hour stopped
+  labels: {
+    purpose: 'ci-pipeline',
+    pipeline_id: 'build-123'
+  }
+})
+```
+
+### Long-Term Research Environment
+
+```typescript
+// Long-lived research sandbox
+const researchSandbox = await daytona.create({
+  autoStopInterval: 240,      // Stop after 4 hours idle
+  autoArchiveInterval: 0,     // Maximum archive interval
+  autoDeleteInterval: -1,     // Never auto-delete
+  labels: {
+    project: 'ml-research',
+    preserve: 'true'
+  }
+})
+```
+
+### Temporary Demo Environment
+
+```typescript
+// Ephemeral demo sandbox
+const demoSandbox = await daytona.create({
+  ephemeral: true,           // Delete on stop
+  autoStopInterval: 120,     // Stop after 2 hours
+  public: true,              // Public preview URLs
+  labels: {
+    purpose: 'demo',
+    temporary: 'true'
+  }
+})
+```
+
+## Activity Refresh
+
+Reset the inactivity timer to prevent auto-stop:
+
+<CodeGroup>
+```typescript TypeScript
+// Keep sandbox alive during long-running operations
+await sandbox.refreshActivity()
+
+// The auto-stop timer is now reset
+```
+
+```python Python
+# Keep sandbox alive during long-running operations
+sandbox.refresh_activity()
+
+# The auto-stop timer is now reset
+```
+</CodeGroup>
+
+## What Counts as Activity?
+
+The following actions reset the inactivity timer:
+- SDK operations (file operations, process execution, etc.)
+- State changes (start, stop)
+- Configuration updates
+- Manual activity refresh
+
+**Note**: Preview URL access does NOT count as activity.
+
+## Lifecycle Interval Reference
+
+| Parameter | Type | Default | Special Values |
+|-----------|------|---------|----------------|
+| `autoStopInterval` | `number` | `15` | `0` = disabled |
+| `autoArchiveInterval` | `number` | `10080` (7 days) | `0` = max interval |
+| `autoDeleteInterval` | `number` | `-1` (disabled) | `-1` = disabled<br/>`0` = immediate |
+| `ephemeral` | `boolean` | `false` | Sets `autoDeleteInterval = 0` |
+
+## Time Conversion Helper
+
+```typescript
+// Helper function to convert time units to minutes
+function toMinutes(value: number, unit: 'minutes' | 'hours' | 'days'): number {
+  const multipliers = {
+    minutes: 1,
+    hours: 60,
+    days: 1440
+  }
+  return value * multipliers[unit]
+}
+
+// Examples:
+const sandbox = await daytona.create({
+  autoStopInterval: toMinutes(2, 'hours'),      // 120 minutes
+  autoArchiveInterval: toMinutes(3, 'days'),    // 4320 minutes
+  autoDeleteInterval: toMinutes(7, 'days')      // 10080 minutes
+})
+```
+
+## Best Practices
+
+1. **Development environments**: Use moderate auto-stop (30-60 min) to save resources while maintaining convenience.
+
+2. **CI/CD sandboxes**: Use aggressive auto-delete (ephemeral or short intervals) to minimize costs.
+
+3. **Production-like environments**: Disable auto-delete and use long archive intervals to preserve important work.
+
+4. **Demos and testing**: Use ephemeral sandboxes for temporary workloads.
+
+5. **Long-running jobs**: Call `refreshActivity()` periodically to prevent auto-stop during extended operations.
+
+6. **Cost optimization**: Enable auto-archive and auto-delete for unused sandboxes to reduce storage costs.
+
+## Related
+
+- [Resource Management](/advanced/resource-management) - Configure CPU and memory
+- [Custom Images](/advanced/custom-images) - Build custom environments
+- [Monitoring](/advanced/monitoring) - Track sandbox usage
