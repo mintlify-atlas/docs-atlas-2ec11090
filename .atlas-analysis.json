@@ -1,0 +1,191 @@
+{
+  "projectType": "infrastructure",
+  "projectName": "Daytona",
+  "projectDescription": "Secure and elastic infrastructure for running AI-generated code in isolated sandboxes",
+  "theme": "aspen",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#1E40AF",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sandboxes",
+              "concepts/snapshots",
+              "concepts/volumes",
+              "concepts/architecture",
+              "concepts/security"
+            ]
+          },
+          {
+            "group": "SDK Guides",
+            "pages": [
+              "sdks/overview",
+              "sdks/python",
+              "sdks/typescript",
+              "sdks/go",
+              "sdks/ruby"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/process-execution",
+              "features/filesystem-operations",
+              "features/git-operations",
+              "features/language-server-protocol",
+              "features/code-interpreter",
+              "features/computer-use",
+              "features/pty-sessions"
+            ]
+          },
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/sandbox-commands",
+              "cli/snapshot-commands",
+              "cli/volume-commands",
+              "cli/organization-commands"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/custom-images",
+              "advanced/resource-management",
+              "advanced/network-configuration",
+              "advanced/auto-lifecycle",
+              "advanced/regions",
+              "advanced/monitoring"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/rate-limits",
+              "api/errors"
+            ]
+          },
+          {
+            "group": "Sandboxes",
+            "pages": [
+              "api/sandboxes/create",
+              "api/sandboxes/list",
+              "api/sandboxes/get",
+              "api/sandboxes/start",
+              "api/sandboxes/stop",
+              "api/sandboxes/delete"
+            ]
+          },
+          {
+            "group": "Snapshots",
+            "pages": [
+              "api/snapshots/create",
+              "api/snapshots/list",
+              "api/snapshots/get",
+              "api/snapshots/delete"
+            ]
+          },
+          {
+            "group": "Volumes",
+            "pages": [
+              "api/volumes/create",
+              "api/volumes/list",
+              "api/volumes/get",
+              "api/volumes/delete"
+            ]
+          },
+          {
+            "group": "Toolbox API",
+            "pages": [
+              "api/toolbox/overview",
+              "api/toolbox/process",
+              "api/toolbox/filesystem",
+              "api/toolbox/git",
+              "api/toolbox/lsp"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Code Examples",
+            "pages": [
+              "examples/overview",
+              "examples/basic-sandbox",
+              "examples/file-operations",
+              "examples/git-workflow",
+              "examples/code-execution",
+              "examples/auto-lifecycle"
+            ]
+          },
+          {
+            "group": "Integration Guides",
+            "pages": [
+              "guides/ai-coding-agents",
+              "guides/data-analysis",
+              "guides/multi-agent-systems",
+              "guides/jupyter-notebooks",
+              "guides/monitoring-observability"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Sub-90ms sandbox creation",
+    "Isolated runtime for AI-generated code",
+    "Multi-language SDK support (Python, TypeScript, Go, Ruby)",
+    "File, Git, LSP, and Execute APIs",
+    "OCI/Docker image compatibility",
+    "Persistent sandboxes with auto-lifecycle",
+    "Built-in code interpreter and computer use",
+    "CLI for sandbox management",
+    "OpenAPI-based REST API",
+    "Volume management for data persistence"
+  ],
+  "publicApiSurface": [
+    "Daytona.create() - Create sandboxes",
+    "Sandbox.process.codeRun() - Execute code",
+    "Sandbox.process.executeCommand() - Run commands",
+    "Sandbox.fs.uploadFile() - Upload files",
+    "Sandbox.fs.downloadFile() - Download files",
+    "Sandbox.git.clone() - Clone repositories",
+    "Sandbox.git.branches() - List branches",
+    "Sandbox.createLspServer() - Start LSP server",
+    "Client.Volume - Volume management",
+    "Client.Snapshot - Snapshot management",
+    "CLI: daytona create - Create sandbox",
+    "CLI: daytona list - List sandboxes",
+    "CLI: daytona ssh - SSH into sandbox",
+    "CLI: daytona exec - Execute command",
+    "REST API: POST /sandboxes",
+    "REST API: GET /sandboxes",
+    "REST API: POST /snapshots",
+    "REST API: POST /volumes"
+  ]
+}
