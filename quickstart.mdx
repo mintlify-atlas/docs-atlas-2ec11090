@@ -1,80 +1,223 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Create your first Daytona sandbox in under 5 minutes
 ---
 
-## Get started in three steps
+Get started with Daytona by creating and running your first sandbox. This guide will walk you through the complete process from setup to execution.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- A Daytona account ([sign up here](https://app.daytona.io))
+- An API key ([create one](https://app.daytona.io/dashboard/keys))
+- Python, Node.js, Go, or Ruby installed
 
-### Step 2: Deploy your changes
+## Create your first sandbox
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Install the SDK">
+    Choose your preferred language and install the Daytona SDK:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <CodeGroup>
+    ```bash pip
+    pip install daytona
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash npm
+    npm install @daytonaio/sdk
+    ```
 
-### Step 3: Go live
+    ```bash yarn
+    yarn add @daytonaio/sdk
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ```bash go
+    go get github.com/daytonaio/daytona/libs/sdk-go
+    ```
+
+    ```bash gem
+    gem install daytona
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Set your API key">
+    Set your API key as an environment variable:
+
+    <CodeGroup>
+    ```bash bash
+    export DAYTONA_API_KEY="your-api-key-here"
+    ```
+
+    ```powershell powershell
+    $env:DAYTONA_API_KEY="your-api-key-here"
+    ```
+    </CodeGroup>
+
+    <Tip>
+      You can also pass the API key directly in your code. See the [authentication guide](/authentication) for more options.
+    </Tip>
+  </Step>
+
+  <Step title="Create and run a sandbox">
+    Create a simple program that creates a sandbox and runs code inside it:
+
+    <Tabs>
+      <Tab title="Python">
+        ```python
+        from daytona import Daytona
+
+        # Initialize the Daytona client
+        daytona = Daytona()
+
+        # Create the sandbox
+        sandbox = daytona.create()
+
+        # Run code securely inside the sandbox
+        response = sandbox.process.code_run('print("Sum of 3 and 4 is", 3 + 4)')
+        print(response.result)
+
+        # Clean up
+        daytona.delete(sandbox)
+        ```
+      </Tab>
+
+      <Tab title="TypeScript">
+        ```typescript
+        import { Daytona } from '@daytonaio/sdk'
+
+        async function main() {
+          // Initialize the Daytona client
+          const daytona = new Daytona()
+
+          let sandbox
+          try {
+            // Create the sandbox
+            sandbox = await daytona.create()
+
+            // Run code securely inside the sandbox
+            const response = await sandbox.process.codeRun(
+              'console.log("Sum of 3 and 4 is", 3 + 4)'
+            )
+            console.log(response.result)
+          } finally {
+            if (sandbox) await daytona.delete(sandbox)
+          }
+        }
+
+        main().catch(console.error)
+        ```
+      </Tab>
+
+      <Tab title="Go">
+        ```go
+        package main
+
+        import (
+          "context"
+          "fmt"
+          "log"
+
+          "github.com/daytonaio/daytona/libs/sdk-go/pkg/daytona"
+          "github.com/daytonaio/daytona/libs/sdk-go/pkg/types"
+        )
+
+        func main() {
+          // Initialize the Daytona client
+          client, err := daytona.NewClient()
+          if err != nil {
+            log.Fatal(err)
+          }
+
+          ctx := context.Background()
+
+          // Create the sandbox
+          params := types.SnapshotParams{
+            SandboxBaseParams: types.SandboxBaseParams{
+              Language: types.CodeLanguagePython,
+            },
+          }
+
+          sandbox, _, err := client.Create(ctx, params)
+          if err != nil {
+            log.Fatal(err)
+          }
+          defer sandbox.Delete(ctx)
+
+          // Run code securely inside the sandbox
+          response, err := sandbox.Process.ExecuteCommand(
+            ctx,
+            `python3 -c "print('Sum of 3 and 4 is', 3 + 4)"`,
+          )
+          if err != nil {
+            log.Fatal(err)
+          }
+
+          fmt.Println(response.Result)
+        }
+        ```
+      </Tab>
+
+      <Tab title="Ruby">
+        ```ruby
+        require 'daytona'
+
+        # Initialize the Daytona client
+        daytona = Daytona::Client.new
+
+        begin
+          # Create the sandbox
+          sandbox = daytona.create
+
+          # Run code securely inside the sandbox
+          response = sandbox.process.code_run('puts "Sum of 3 and 4 is #{3 + 4}"')
+          puts response.result
+        ensure
+          # Clean up
+          daytona.delete(sandbox) if sandbox
+        end
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Run your program">
+    Execute your program and you'll see the output:
+
+    ```
+    Sum of 3 and 4 is 7
+    ```
+
+    <Check>
+      **Congratulations!** You've successfully created your first Daytona sandbox and executed code inside it.
+    </Check>
+  </Step>
+</Steps>
+
+## What just happened?
+
+Let's break down what your program did:
+
+1. **Initialized the client** - Connected to the Daytona API using your API key
+2. **Created a sandbox** - Launched an isolated execution environment in under 90ms
+3. **Executed code** - Ran Python code safely inside the sandbox
+4. **Retrieved output** - Got the results back to your application
+5. **Cleaned up** - Deleted the sandbox to free up resources
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Explore file operations" icon="folder" href="/features/filesystem-operations">
+    Upload, download, and manage files in your sandbox
+  </Card>
+  <Card title="Git operations" icon="git" href="/features/git-operations">
+    Clone repositories and manage Git workflows
+  </Card>
+  <Card title="Process management" icon="terminal" href="/features/process-execution">
+    Execute commands and manage processes
+  </Card>
+  <Card title="Language Server Protocol" icon="code" href="/features/language-server-protocol">
+    Add code intelligence with LSP support
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
